@@ -87,18 +87,24 @@
       
       const color = getMagnitudeColor(eq.magnitude);
       const isLatest = index === 0;
-      const size = 28;
+      const latestSize = 44;
+      const normalSize = 28;
+      const currentSize = isLatest ? latestSize : normalSize;
       
       const icon = L.divIcon({
         className: 'custom-marker',
         html: `
           <div class="marker-wrapper ${isLatest ? 'latest' : ''}" style="--marker-color: ${color};">
-            ${isLatest ? '<div class="marker-ring"></div>' : ''}
-            <div class="marker-dot">${eq.magnitude.toFixed(1)}</div>
+            ${isLatest ? `
+              <div class="marker-ring ring-1"></div>
+              <div class="marker-ring ring-2"></div>
+              <div class="marker-ring ring-3"></div>
+            ` : ''}
+            <div class="marker-dot ${isLatest ? 'latest-dot' : ''}">${eq.magnitude.toFixed(1)}</div>
           </div>
         `,
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2]
+        iconSize: [currentSize, currentSize],
+        iconAnchor: [currentSize / 2, currentSize / 2]
       });
 
       const marker = L.marker([eq.latitude, eq.longitude], { icon });
@@ -170,9 +176,16 @@
   }
 
   // Tema değiştiğinde harita stilini güncelle
-  $: if (initialized) {
+  $: if (initialized && darkMode !== undefined) {
     updateTileLayer();
   }
+
+  // darkMode değişikliğini izle
+  $: darkMode, (() => {
+    if (initialized && map) {
+      updateTileLayer();
+    }
+  })();
 
   onDestroy(() => {
     if (map) {
@@ -272,22 +285,52 @@
 
   :global(.marker-ring) {
     position: absolute;
-    width: 38px;
-    height: 38px;
     border: 2px solid var(--marker-color);
     border-radius: 50%;
-    animation: ring-pulse 2s ease-out infinite;
+    pointer-events: none;
   }
 
-  @keyframes ring-pulse {
-    0% { transform: scale(1); opacity: 1; }
-    100% { transform: scale(2); opacity: 0; }
+  :global(.marker-ring.ring-1) {
+    width: 44px;
+    height: 44px;
+    animation: ring-pulse-1 2.5s ease-out infinite;
+  }
+
+  :global(.marker-ring.ring-2) {
+    width: 44px;
+    height: 44px;
+    animation: ring-pulse-2 2.5s ease-out infinite;
+    animation-delay: 0.8s;
+  }
+
+  :global(.marker-ring.ring-3) {
+    width: 44px;
+    height: 44px;
+    animation: ring-pulse-3 2.5s ease-out infinite;
+    animation-delay: 1.6s;
+  }
+
+  @keyframes ring-pulse-1 {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  @keyframes ring-pulse-2 {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  @keyframes ring-pulse-3 {
+    0% { transform: scale(1); opacity: 0.4; }
+    100% { transform: scale(1.9); opacity: 0; }
   }
 
   :global(.marker-dot) {
     position: relative;
     width: 28px;
     height: 28px;
+    min-width: 28px;
+    min-height: 28px;
     background: var(--marker-color);
     border-radius: 50%;
     display: flex;
@@ -301,23 +344,26 @@
     text-shadow: 0 1px 2px rgba(0,0,0,0.3);
     cursor: pointer;
     transition: transform 0.2s;
+    aspect-ratio: 1 / 1;
   }
 
   :global(.marker-dot:hover) {
     transform: scale(1.1);
   }
 
-  :global(.marker-wrapper.latest .marker-dot) {
-    width: 34px;
-    height: 34px;
+  :global(.marker-dot.latest-dot) {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
     font-size: 13px;
     border-width: 3px;
-    animation: bounce 1s ease infinite;
+    box-shadow: 0 0 20px var(--marker-color), 0 4px 15px rgba(0, 0, 0, 0.5);
   }
 
-  @keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
+  :global(.marker-wrapper.latest) {
+    width: 44px;
+    height: 44px;
   }
 
   :global(.custom-popup .leaflet-popup-content-wrapper) {
