@@ -368,28 +368,92 @@
     }
   }
 
-  @media (max-width: 600px) {
+  @media (max-width: 768px) {
     .widgets-row {
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
+      grid-template-columns: 1fr;
+      gap: 0.625rem;
     }
 
     .widget {
       padding: 0.75rem;
     }
 
+    .widget-content {
+      gap: 0.625rem;
+    }
+
     .mag-circle {
-      width: 44px;
-      height: 44px;
-      font-size: 1.1rem;
+      width: 48px;
+      height: 48px;
+      font-size: 1.15rem;
+    }
+
+    .location-text {
+      font-size: 0.8rem;
+    }
+
+    .sub-text {
+      font-size: 0.7rem;
+    }
+
+    .big-stat {
+      font-size: 1.75rem;
+    }
+
+    .widget-badge {
+      font-size: 0.6rem;
+      padding: 0.15rem 0.4rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .widgets-row {
+      gap: 0.5rem;
+    }
+
+    .widget {
+      padding: 0.625rem;
+    }
+
+    .widget-header {
+      margin-bottom: 0.5rem;
+      gap: 0.4rem;
+    }
+
+    .widget-icon {
+      width: 20px;
+      height: 20px;
+    }
+
+    .widget-icon svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .widget-title {
+      font-size: 0.7rem;
+    }
+
+    .mag-circle {
+      width: 42px;
+      height: 42px;
+      font-size: 1rem;
     }
 
     .location-text {
       font-size: 0.75rem;
     }
 
+    .sub-text {
+      font-size: 0.65rem;
+    }
+
     .big-stat {
       font-size: 1.5rem;
+    }
+
+    .stat-label {
+      font-size: 0.65rem;
     }
   }
 </style>

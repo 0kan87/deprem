@@ -21,7 +21,7 @@
   const DEFAULT_ZOOM = 7;
 
   const lightTile = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-  const darkTile = 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png';
+  const darkTile = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
   // Seçili deprem değiştiğinde haritayı güncelle
   $: if (map && selectedEarthquake && selectedEarthquake.latitude) {
