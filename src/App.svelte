@@ -22,7 +22,9 @@
 
   // API URL'leri
   const API_URL = 'https://api.orhanaydogdu.com.tr/deprem/kandilli/live';
-  const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+  const SOCKET_URL = import.meta.env.PROD 
+    ? 'https://deprem-ten.vercel.app' 
+    : (import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001');
 
   // Yeni deprem animasyonu
   function triggerNewEarthquakeEffect(earthquake) {
@@ -200,7 +202,7 @@
       if (permission === 'granted') {
         new Notification('Deprem Takip', {
           body: 'Bildirimler aktif! Yeni depremlerden anında haberdar olacaksınız.',
-          icon: '/favicon.svg'
+          icon: '/icon/android-icon-192x192.png'
         });
       }
     }
@@ -210,7 +212,7 @@
     if (notificationPermission === 'granted' && earthquake.magnitude >= 2.5) {
       const notification = new Notification(`🚨 Deprem: ${earthquake.magnitude.toFixed(1)}`, {
         body: `📍 ${earthquake.location}\n⏰ ${earthquake.date} ${earthquake.time}\n📏 Derinlik: ${earthquake.depth} km`,
-        icon: '/favicon.svg',
+        icon: '/icon/android-icon-192x192.png',
         vibrate: [200, 100, 200, 100, 200],
         tag: earthquake.id,
         requireInteraction: earthquake.magnitude >= 4.0,
