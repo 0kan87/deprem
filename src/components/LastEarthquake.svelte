@@ -31,14 +31,19 @@
         
         result.addEventListener('change', () => {
           locationPermission = result.state;
+          // İzin verilirse konumu al
+          if (result.state === 'granted' && !userLocation) {
+            getCurrentLocation().catch(() => {});
+          }
         });
 
         // Eğer izin verilmişse konumu al
         if (result.state === 'granted') {
-          getCurrentLocation();
+          getCurrentLocation().catch(() => {});
         }
       } catch (e) {
-        console.log('Konum izni kontrolü yapılamadı');
+        // permissions API desteklenmiyorsa prompt olarak kabul et
+        locationPermission = 'prompt';
       }
     }
   });
@@ -60,26 +65,27 @@
             locationName: null
           };
           
-          // Yer adını al
-          try {
-            const locationName = await getLocationName(position.coords.latitude, position.coords.longitude);
-            userLocation.locationName = locationName;
-          } catch (e) {
-            console.log('Yer adı alınamadı:', e);
-          }
+          locationPermission = 'granted';
+          
+          // Yer adını al (arka planda)
+          getLocationName(position.coords.latitude, position.coords.longitude)
+            .then(name => {
+              if (name) userLocation.locationName = name;
+            })
+            .catch(() => {});
           
           resolve(userLocation);
         },
         (error) => {
-          // Hata durumunda sessizce işle
-          if (error.code === 1) {
+          // Hata kodlarına göre işle
+          if (error.code === 1) { // PERMISSION_DENIED
             locationPermission = 'denied';
           }
           reject(error);
         },
         {
           enableHighAccuracy: true,
-          timeout: 10000,
+          timeout: 15000,
           maximumAge: 60000
         }
       );
@@ -99,7 +105,7 @@
         }
       );
       
-      if (!response.ok) throw new Error('Geocoding API hatası');
+      if (!response.ok) return null;
       
       const data = await response.json();
       
@@ -124,28 +130,12 @@
         
         // Fallback: display_name'in kısa versiyonu
         if (data.display_name) {
-          const shortName = data.display_name.split(',').slice(0, 3).join(',');
-          return shortName;
+          return data.display_name.split(',').slice(0, 3).join(',').trim();
         }
       }
       
       return null;
     } catch (e) {
-      console.log('Reverse geocoding hatası:', e);
-      return null;
-    }
-  }
-
-  // Konum izni iste
-  async function requestLocationPermission() {
-    try {
-      const location = await getCurrentLocation();
-      locationPermission = 'granted';
-      return location;
-    } catch (e) {
-      if (e.code === 1) {
-        locationPermission = 'denied';
-      }
       return null;
     }
   }
@@ -156,37 +146,45 @@
 
     // Konum izni reddedilmişse uyarı göster
     if (locationPermission === 'denied') {
-      alert('Deprem bildirmek için konum izni gereklidir. Lütfen tarayıcı ayarlarından konum iznini etkinleştirin.');
+      alert('Deprem bildirmek için konum izni gereklidir.\n\nTarayıcı ayarlarından bu site için konum iznini sıfırlayıp sayfayı yenileyin.');
       return;
     }
 
     isReporting = true;
 
     try {
-      // Konum izni yoksa iste
-      if (locationPermission !== 'granted') {
-        const location = await requestLocationPermission();
-        if (!location) {
+      // Konum al (izin yoksa tarayıcı otomatik soracak)
+      if (!userLocation) {
+        try {
+          await getCurrentLocation();
+        } catch (error) {
           isReporting = false;
-          if (locationPermission === 'denied') {
-            alert('Konum izni reddedildi. Deprem bildirmek için konum izni gereklidir.');
+          
+          if (error.code === 1) { // PERMISSION_DENIED
+            locationPermission = 'denied';
+            alert('Konum izni reddedildi.\n\nDeprem bildirmek için konum izni gereklidir. Tarayıcı ayarlarından izni etkinleştirip sayfayı yenileyin.');
+          } else if (error.code === 2) { // POSITION_UNAVAILABLE
+            alert('Konum bilgisi alınamadı. Lütfen GPS\'inizin açık olduğundan emin olun.');
+          } else if (error.code === 3) { // TIMEOUT
+            alert('Konum alınırken zaman aşımı oluştu. Lütfen tekrar deneyin.');
+          } else {
+            alert('Konum alınamadı. Lütfen tekrar deneyin.');
           }
           return;
         }
-      } else if (!userLocation) {
-        await getCurrentLocation();
       }
 
       if (!userLocation) {
-        alert('Konumunuz alınamadı. Lütfen konum izni verdiğinizden emin olun.');
         isReporting = false;
+        alert('Konumunuz alınamadı. Lütfen tekrar deneyin.');
         return;
       }
 
-      // Eğer yer adı henüz alınmadıysa tekrar dene
+      // Eğer yer adı henüz alınmadıysa bekle
       if (!userLocation.locationName) {
         try {
-          userLocation.locationName = await getLocationName(userLocation.latitude, userLocation.longitude);
+          const name = await getLocationName(userLocation.latitude, userLocation.longitude);
+          if (name) userLocation.locationName = name;
         } catch (e) {
           // Yer adı alınamazsa koordinatları kullan
         }
@@ -215,7 +213,6 @@
       }, 30000);
 
     } catch (e) {
-      console.log('Deprem bildirimi gönderilemedi:', e);
       alert('Bildirim gönderilemedi. Lütfen tekrar deneyin.');
     }
 
