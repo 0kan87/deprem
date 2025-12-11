@@ -350,6 +350,35 @@
     selectedEarthquake = event.detail;
     focusEarthquake = event.detail;
   }
+
+  // Deprem bildirimi işle
+  function handleReportEarthquake(event) {
+    const reportData = event.detail;
+    console.log('🚨 Deprem bildirimi alındı:', reportData);
+    
+    // Bildirim gönder (eğer izin varsa)
+    if (notificationPermission === 'granted') {
+      new Notification('📍 Deprem Bildirimi Gönderildi', {
+        body: `Konumunuz: ${reportData.latitude.toFixed(4)}°, ${reportData.longitude.toFixed(4)}°\nDoğruluk: ±${Math.round(reportData.accuracy)}m`,
+        icon: '/icon/android-icon-192x192.png',
+        tag: 'earthquake-report'
+      });
+    }
+
+    // WebSocket üzerinden diğer kullanıcılara bildir
+    if (socket && connected) {
+      socket.emit('earthquakeReport', reportData);
+    }
+
+    // Haritada kullanıcının konumunu göster (opsiyonel)
+    focusEarthquake = {
+      latitude: reportData.latitude,
+      longitude: reportData.longitude,
+      magnitude: 0,
+      location: 'Kullanıcı Bildirimi',
+      isUserReport: true
+    };
+  }
 </script>
 
 <main class:dark={darkMode}>
@@ -387,6 +416,7 @@
         {isNewEarthquake}
         on:select={handleEarthquakeSelect}
         on:animate={handleEarthquakeAnimation}
+        on:reportEarthquake={handleReportEarthquake}
       />
       
       <!-- Ana İçerik: Harita ve Liste -->

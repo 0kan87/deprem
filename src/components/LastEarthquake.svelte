@@ -1,5 +1,5 @@
 <script>
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   
   export let earthquake = null;
   export let earthquakes = [];
@@ -9,11 +9,135 @@
 
   const dispatch = createEventDispatcher();
 
+  let locationPermission = 'prompt'; // 'granted', 'denied', 'prompt'
+  let userLocation = null;
+  let isReporting = false;
+  let reportSuccess = false;
+  let reportCooldown = false;
+
   function handleEarthquakeClick(eq) {
     if (eq) {
       dispatch('select', eq);
       dispatch('animate', eq);
     }
+  }
+
+  // Konum izni kontrolü
+  onMount(async () => {
+    if ('permissions' in navigator) {
+      try {
+        const result = await navigator.permissions.query({ name: 'geolocation' });
+        locationPermission = result.state;
+        
+        result.addEventListener('change', () => {
+          locationPermission = result.state;
+        });
+
+        // Eğer izin verilmişse konumu al
+        if (result.state === 'granted') {
+          getCurrentLocation();
+        }
+      } catch (e) {
+        console.log('Konum izni kontrolü yapılamadı');
+      }
+    }
+  });
+
+  // Mevcut konumu al
+  function getCurrentLocation() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation desteklenmiyor'));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          userLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          };
+          resolve(userLocation);
+        },
+        (error) => {
+          console.error('Konum alınamadı:', error);
+          reject(error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000
+        }
+      );
+    });
+  }
+
+  // Konum izni iste
+  async function requestLocationPermission() {
+    try {
+      const location = await getCurrentLocation();
+      locationPermission = 'granted';
+      return location;
+    } catch (e) {
+      if (e.code === 1) {
+        locationPermission = 'denied';
+      }
+      return null;
+    }
+  }
+
+  // Deprem bildir
+  async function reportEarthquake() {
+    if (reportCooldown || isReporting) return;
+
+    isReporting = true;
+
+    try {
+      // Konum izni yoksa iste
+      if (locationPermission !== 'granted') {
+        const location = await requestLocationPermission();
+        if (!location) {
+          isReporting = false;
+          return;
+        }
+      } else if (!userLocation) {
+        await getCurrentLocation();
+      }
+
+      if (!userLocation) {
+        alert('Konumunuz alınamadı. Lütfen konum izni verdiğinizden emin olun.');
+        isReporting = false;
+        return;
+      }
+
+      // Bildirimi gönder
+      dispatch('reportEarthquake', {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        accuracy: userLocation.accuracy,
+        timestamp: new Date().toISOString()
+      });
+
+      reportSuccess = true;
+      reportCooldown = true;
+
+      // 3 saniye sonra başarı mesajını kaldır
+      setTimeout(() => {
+        reportSuccess = false;
+      }, 3000);
+
+      // 30 saniye cooldown
+      setTimeout(() => {
+        reportCooldown = false;
+      }, 30000);
+
+    } catch (e) {
+      console.error('Deprem bildirimi gönderilemedi:', e);
+      alert('Bildirim gönderilemedi. Lütfen tekrar deneyin.');
+    }
+
+    isReporting = false;
   }
 
   // Bugünün en büyük depremi
@@ -169,12 +293,90 @@
       <span class="stat-label">büyüklük</span>
     </div>
   </div>
+
+  <!-- Widget 5: Deprem Bildir -->
+  <button 
+    class="widget report-widget" 
+    class:success={reportSuccess}
+    class:disabled={locationPermission === 'denied'}
+    on:click={reportEarthquake}
+    disabled={isReporting || reportCooldown || locationPermission === 'denied'}
+  >
+    <div class="widget-header">
+      <div class="widget-icon report" class:granted={locationPermission === 'granted'}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      </div>
+      <span class="widget-title">Deprem Bildir</span>
+      {#if locationPermission === 'granted'}
+        <span class="widget-badge location-active">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+            <circle cx="12" cy="12" r="4"/>
+          </svg>
+          Konum Aktif
+        </span>
+      {/if}
+    </div>
+    <div class="widget-content report-content">
+      {#if reportSuccess}
+        <div class="report-success">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          <span>Bildirildi!</span>
+        </div>
+      {:else if locationPermission === 'denied'}
+        <div class="report-denied">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+          </svg>
+          <span class="report-text">Konum izni gerekli</span>
+        </div>
+      {:else if isReporting}
+        <div class="report-loading">
+          <div class="mini-spinner"></div>
+          <span>Gönderiliyor...</span>
+        </div>
+      {:else if reportCooldown}
+        <div class="report-cooldown">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span>Bekleyin...</span>
+        </div>
+      {:else}
+        <div class="report-button-content">
+          <div class="report-icon-large">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+          </div>
+          <div class="report-text-container">
+            <span class="report-main-text">Deprem Hissettim</span>
+            <span class="report-sub-text">
+              {#if locationPermission === 'granted'}
+                Tıklayarak herkese bildirin
+              {:else}
+                Konum izni vererek bildirin
+              {/if}
+            </span>
+          </div>
+        </div>
+      {/if}
+    </div>
+  </button>
 </div>
 
 <style>
   .widgets-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 0.75rem;
   }
 
@@ -225,6 +427,162 @@
   button.widget:disabled {
     cursor: default;
     opacity: 0.7;
+  }
+
+  /* Report Widget Styles */
+  .report-widget {
+    cursor: pointer;
+    border-color: rgba(168, 85, 247, 0.3);
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(168, 85, 247, 0.05) 100%);
+  }
+
+  .report-widget:hover:not(:disabled) {
+    border-color: #a855f7;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.25);
+  }
+
+  .report-widget:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .report-widget.success {
+    border-color: #22c55e;
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(34, 197, 94, 0.1) 100%);
+  }
+
+  .report-widget.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .widget-icon.report {
+    background: rgba(168, 85, 247, 0.15);
+    color: #a855f7;
+  }
+
+  .widget-icon.report.granted {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+  }
+
+  .widget-badge.location-active {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .widget-badge.location-active svg {
+    width: 8px;
+    height: 8px;
+  }
+
+  .report-content {
+    min-height: 52px;
+  }
+
+  .report-button-content {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+  }
+
+  .report-icon-large {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .report-icon-large svg {
+    width: 22px;
+    height: 22px;
+    color: white;
+  }
+
+  .report-text-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .report-main-text {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .report-sub-text {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    line-height: 1.3;
+  }
+
+  .report-success {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: #22c55e;
+    font-weight: 600;
+    font-size: 0.9rem;
+    height: 100%;
+  }
+
+  .report-success svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .report-denied {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+  }
+
+  .report-denied svg {
+    width: 20px;
+    height: 20px;
+    opacity: 0.6;
+  }
+
+  .report-loading, .report-cooldown {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    height: 100%;
+  }
+
+  .report-cooldown svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .mini-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border-color);
+    border-top-color: #a855f7;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .widget.alert {
