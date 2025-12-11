@@ -1,8 +1,9 @@
-const CACHE_NAME = 'deprem-takip-v1';
+const CACHE_NAME = 'deprem-takip-v2';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/favicon.svg'
+  '/icon/favicon.ico',
+  '/icon/android-icon-192x192.png'
 ];
 
 // Service Worker kurulumu
@@ -76,8 +77,8 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   const options = {
     body: event.data ? event.data.text() : 'Yeni deprem algılandı!',
-    icon: '/pwa-192x192.png',
-    badge: '/pwa-192x192.png',
+    icon: '/icon/android-icon-192x192.png',
+    badge: '/icon/android-icon-96x96.png',
     vibrate: [200, 100, 200],
     data: {
       dateOfArrival: Date.now(),

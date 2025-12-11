@@ -22,9 +22,8 @@
 
   // API URL'leri
   const API_URL = 'https://api.orhanaydogdu.com.tr/deprem/kandilli/live';
-  const SOCKET_URL = import.meta.env.PROD 
-    ? 'https://deprem-ten.vercel.app' 
-    : (import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001');
+  const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+  const IS_VERCEL = import.meta.env.PROD && window.location.hostname.includes('vercel.app');
 
   // Yeni deprem animasyonu
   function triggerNewEarthquakeEffect(earthquake) {
@@ -279,15 +278,17 @@
     }
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
 
-    // WebSocket bağlantısı
-    connectSocket();
+    // WebSocket bağlantısı (Vercel'de WebSocket desteklenmediği için devre dışı)
+    if (!IS_VERCEL) {
+      connectSocket();
+    }
 
     // İlk yükleme
     fetchEarthquakes();
     
-    // Fallback: WebSocket çalışmazsa her 15 saniyede bir güncelle
+    // Vercel'de veya WebSocket çalışmazsa her 15 saniyede bir güncelle
     intervalId = setInterval(() => {
-      if (!connected) {
+      if (IS_VERCEL || !connected) {
         fetchEarthquakes();
       }
     }, 15000);
