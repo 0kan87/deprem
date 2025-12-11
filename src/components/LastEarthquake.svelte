@@ -1,5 +1,5 @@
 <script>
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   
   export let earthquake = null;
   export let earthquakes = [];
@@ -14,6 +14,10 @@
   let isReporting = false;
   let reportSuccess = false;
   let reportCooldown = false;
+  
+  // Dinamik saat
+  let currentTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  let clockInterval;
 
   function handleEarthquakeClick(eq) {
     if (eq) {
@@ -22,8 +26,13 @@
     }
   }
 
-  // Konum izni kontrolü
+  // Konum izni kontrolü ve saat başlatma
   onMount(async () => {
+    // Dinamik saat başlat
+    clockInterval = setInterval(() => {
+      currentTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }, 1000);
+
     if ('permissions' in navigator) {
       try {
         const result = await navigator.permissions.query({ name: 'geolocation' });
@@ -45,6 +54,12 @@
         // permissions API desteklenmiyorsa prompt olarak kabul et
         locationPermission = 'prompt';
       }
+    }
+  });
+
+  onDestroy(() => {
+    if (clockInterval) {
+      clearInterval(clockInterval);
     }
   });
 
@@ -340,7 +355,7 @@
     </div>
   </button>
 
-  <!-- Widget 3: Bugünkü Sayı -->
+  <!-- Widget 3: Bugünkü Sayı + Saat -->
   <div class="widget stat-widget">
     <div class="widget-header">
       <div class="widget-icon chart">
@@ -349,6 +364,13 @@
         </svg>
       </div>
       <span class="widget-title">Bugün</span>
+      <span class="widget-badge clock-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        {currentTime}
+      </span>
     </div>
     <div class="widget-content centered">
       <div class="big-stat">{todaysCount}</div>
@@ -732,6 +754,23 @@
     background: var(--bg-hover);
     border-radius: 4px;
     color: var(--text-secondary);
+  }
+
+  .widget-badge.clock-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: rgba(59, 130, 246, 0.1);
+  }
+
+  .widget-badge.clock-badge svg {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
   }
 
   .widget-content {

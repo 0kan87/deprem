@@ -16,6 +16,8 @@
   let markers = new Map();
   let initialized = false;
   let currentLastId = null;
+  let userReportMarker = null;
+  let userReportTimeout = null;
 
   const TURKEY_CENTER = [38.5, 35.5];
   const DEFAULT_ZOOM = 7;
@@ -25,7 +27,12 @@
 
   // Seçili deprem değiştiğinde haritayı güncelle
   $: if (map && selectedEarthquake && selectedEarthquake.latitude) {
-    flyToAndOpenPopup(selectedEarthquake);
+    if (selectedEarthquake.isUserReport) {
+      // Kullanıcı bildirimi için özel marker
+      showUserReportMarker(selectedEarthquake);
+    } else {
+      flyToAndOpenPopup(selectedEarthquake);
+    }
   }
 
   // Yeni deprem geldiğinde otomatik odaklan
@@ -49,6 +56,81 @@
         marker.openPopup();
       }
     }, 1300);
+  }
+
+  // Kullanıcı bildirimi için özel marker göster
+  function showUserReportMarker(report) {
+    if (!map || !report || !report.latitude) return;
+
+    // Önceki marker'ı temizle
+    if (userReportMarker) {
+      map.removeLayer(userReportMarker);
+      userReportMarker = null;
+    }
+    if (userReportTimeout) {
+      clearTimeout(userReportTimeout);
+    }
+
+    // Haritayı konuma götür
+    map.flyTo([report.latitude, report.longitude], 12, {
+      duration: 1.2
+    });
+
+    // Kırmızı marker oluştur - HİS yazısı ile
+    const icon = L.divIcon({
+      className: 'custom-marker user-report-marker',
+      html: `
+        <div class="user-report-wrapper">
+          <div class="user-report-ring ring-1"></div>
+          <div class="user-report-ring ring-2"></div>
+          <div class="user-report-ring ring-3"></div>
+          <div class="user-report-dot">HİS</div>
+        </div>
+      `,
+      iconSize: [50, 50],
+      iconAnchor: [25, 25]
+    });
+
+    userReportMarker = L.marker([report.latitude, report.longitude], { icon });
+
+    const timeNow = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    const popupContent = `
+      <div class="eq-popup user-report-popup">
+        <div class="popup-mag" style="background: #dc2626">HİS</div>
+        <div class="popup-info">
+          <div class="popup-title">🚨 Kullanıcı Bildirimi</div>
+          <div class="popup-meta">
+            <span>📍 ${report.location || 'Bilinmeyen Konum'}</span>
+            <span>⏰ ${timeNow}</span>
+            <span>🌍 ${report.latitude.toFixed(4)}°, ${report.longitude.toFixed(4)}°</span>
+            <span style="color: #f59e0b;">⚠️ Şiddet bilinmiyor</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    userReportMarker.bindPopup(popupContent, {
+      className: 'custom-popup user-report-popup-container',
+      maxWidth: 300,
+      autoPan: true
+    });
+
+    userReportMarker.addTo(map);
+
+    // Popup'ı aç
+    setTimeout(() => {
+      if (userReportMarker) {
+        userReportMarker.openPopup();
+      }
+    }, 1300);
+
+    // 30 saniye sonra marker'ı kaldır
+    userReportTimeout = setTimeout(() => {
+      if (userReportMarker) {
+        map.removeLayer(userReportMarker);
+        userReportMarker = null;
+      }
+    }, 30000);
   }
 
   function updateTileLayer() {
@@ -428,6 +510,89 @@
     gap: 0.3rem;
     font-size: 0.75rem;
     color: #94a3b8;
+  }
+
+  /* Kullanıcı Bildirimi Marker Stilleri */
+  :global(.user-report-wrapper) {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+  }
+
+  :global(.user-report-ring) {
+    position: absolute;
+    border: 3px solid #dc2626;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  :global(.user-report-ring.ring-1) {
+    width: 50px;
+    height: 50px;
+    animation: user-report-pulse-1 1.5s ease-out infinite;
+  }
+
+  :global(.user-report-ring.ring-2) {
+    width: 50px;
+    height: 50px;
+    animation: user-report-pulse-2 1.5s ease-out infinite;
+    animation-delay: 0.5s;
+  }
+
+  :global(.user-report-ring.ring-3) {
+    width: 50px;
+    height: 50px;
+    animation: user-report-pulse-3 1.5s ease-out infinite;
+    animation-delay: 1s;
+  }
+
+  @keyframes user-report-pulse-1 {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(3); opacity: 0; }
+  }
+
+  @keyframes user-report-pulse-2 {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  @keyframes user-report-pulse-3 {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(2); opacity: 0; }
+  }
+
+  :global(.user-report-dot) {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    background: #dc2626;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    color: white;
+    border: 3px solid white;
+    box-shadow: 0 0 25px rgba(220, 38, 38, 0.6), 0 4px 15px rgba(0, 0, 0, 0.5);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    animation: user-report-glow 1s ease-in-out infinite alternate;
+  }
+
+  @keyframes user-report-glow {
+    0% { box-shadow: 0 0 25px rgba(220, 38, 38, 0.6), 0 4px 15px rgba(0, 0, 0, 0.5); }
+    100% { box-shadow: 0 0 40px rgba(220, 38, 38, 0.9), 0 4px 20px rgba(0, 0, 0, 0.6); }
+  }
+
+  :global(.user-report-popup-container .leaflet-popup-content-wrapper) {
+    border: 2px solid #dc2626;
   }
 
   @media (max-width: 768px) {
