@@ -9,6 +9,7 @@
 
   function handleSelect(earthquake) {
     dispatch('select', earthquake);
+    dispatch('animate', earthquake);
   }
 
   function formatTimeAgo(dateTime, date, time) {

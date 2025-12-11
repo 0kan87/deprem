@@ -12,6 +12,7 @@
   function handleEarthquakeClick(eq) {
     if (eq) {
       dispatch('select', eq);
+      dispatch('animate', eq);
     }
   }
 

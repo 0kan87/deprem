@@ -25,53 +25,82 @@
   const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
   const IS_VERCEL = import.meta.env.PROD && window.location.hostname.includes('vercel.app');
 
-  // Yeni deprem animasyonu
-  function triggerNewEarthquakeEffect(earthquake) {
+  // Deprem animasyonu - şiddetine göre efekt
+  function triggerEarthquakeEffect(earthquake, focusMap = true) {
+    if (!earthquake) return;
+    
     isNewEarthquake = true;
     
-    // Haritayı yeni depreme odakla
-    focusEarthquake = earthquake;
+    // Haritayı depreme odakla
+    if (focusMap) {
+      focusEarthquake = earthquake;
+    }
+    
+    // Şiddetine göre efekt seviyesi belirleme
+    const magnitude = earthquake.magnitude;
+    let intensity = 'low'; // < 3.0
+    if (magnitude >= 5.0) intensity = 'extreme';
+    else if (magnitude >= 4.0) intensity = 'high';
+    else if (magnitude >= 3.0) intensity = 'medium';
     
     // Alarm overlay
     const overlay = document.createElement('div');
-    overlay.className = 'earthquake-alarm-overlay';
+    overlay.className = `earthquake-alarm-overlay intensity-${intensity}`;
     document.body.appendChild(overlay);
     
-    // Sayfa sallama efekti
-    document.body.classList.add('page-shake');
+    // Sayfa sallama efekti - şiddetine göre
+    document.body.classList.add('page-shake', `shake-${intensity}`);
     
-    // Kırmızı kenar efekti
+    // Kenar efekti
     const border = document.createElement('div');
-    border.className = 'earthquake-border';
+    border.className = `earthquake-border intensity-${intensity}`;
     document.body.appendChild(border);
 
-    // Büyüklüğe göre efekt süresi (3 tekrar = 1.5s minimum)
-    const duration = earthquake.magnitude >= 4.0 ? 2500 : 1500;
+    // Büyüklüğe göre efekt süresi
+    let duration = 1000;
+    if (magnitude >= 5.0) duration = 3000;
+    else if (magnitude >= 4.0) duration = 2500;
+    else if (magnitude >= 3.0) duration = 1800;
+    else if (magnitude >= 2.0) duration = 1200;
     
     setTimeout(() => {
-      document.body.classList.remove('page-shake');
+      document.body.classList.remove('page-shake', 'shake-low', 'shake-medium', 'shake-high', 'shake-extreme');
       overlay.remove();
       border.remove();
       isNewEarthquake = false;
     }, duration);
 
-    // Büyük depremler için ekstra efekt
-    if (earthquake.magnitude >= 4.0) {
+    // Büyük depremler için ekstra efekt (4.0+)
+    if (magnitude >= 4.0) {
       document.body.classList.add('big-earthquake');
       
-      // Ekstra flash
-      for (let i = 0; i < 3; i++) {
+      // Flash sayısı şiddete göre
+      const flashCount = magnitude >= 5.0 ? 5 : 3;
+      for (let i = 0; i < flashCount; i++) {
         setTimeout(() => {
           const flash = document.createElement('div');
-          flash.className = 'earthquake-flash-intense';
+          flash.className = `earthquake-flash-intense intensity-${intensity}`;
           document.body.appendChild(flash);
           setTimeout(() => flash.remove(), 200);
-        }, i * 300);
+        }, i * 250);
       }
       
       setTimeout(() => {
         document.body.classList.remove('big-earthquake');
-      }, 2500);
+      }, duration);
+    }
+  }
+
+  // Yeni deprem animasyonu (eski fonksiyon uyumluluğu için)
+  function triggerNewEarthquakeEffect(earthquake) {
+    triggerEarthquakeEffect(earthquake, true);
+  }
+
+  // Widget'tan tıklama ile animasyon tetikleme
+  function handleEarthquakeAnimation(event) {
+    const earthquake = event.detail;
+    if (earthquake) {
+      triggerEarthquakeEffect(earthquake, true);
     }
   }
 
@@ -357,6 +386,7 @@
         {darkMode}
         {isNewEarthquake}
         on:select={handleEarthquakeSelect}
+        on:animate={handleEarthquakeAnimation}
       />
       
       <!-- Ana İçerik: Harita ve Liste -->
@@ -379,6 +409,7 @@
             {getMagnitudeColor}
             {darkMode}
             on:select={handleEarthquakeSelect}
+            on:animate={handleEarthquakeAnimation}
           />
         </div>
       </div>
@@ -427,22 +458,81 @@
     transition: background 0.3s, color 0.3s;
   }
 
-  /* Sayfa sallama efekti - 3 kez tekrar */
-  :global(body.page-shake) {
-    animation: pageShake 0.5s cubic-bezier(.36,.07,.19,.97) 3;
+  /* Sayfa sallama efekti - şiddetine göre */
+  :global(body.page-shake.shake-low) {
+    animation: shakeLow 0.4s cubic-bezier(.36,.07,.19,.97) 2;
   }
 
-  @keyframes pageShake {
+  :global(body.page-shake.shake-medium) {
+    animation: shakeMedium 0.5s cubic-bezier(.36,.07,.19,.97) 3;
+  }
+
+  :global(body.page-shake.shake-high) {
+    animation: shakeHigh 0.5s cubic-bezier(.36,.07,.19,.97) 4;
+  }
+
+  :global(body.page-shake.shake-extreme) {
+    animation: shakeExtreme 0.6s cubic-bezier(.36,.07,.19,.97) 5;
+  }
+
+  /* Düşük şiddet (< 3.0) */
+  @keyframes shakeLow {
     0%, 100% { transform: translateX(0) translateY(0); }
-    10% { transform: translateX(-6px) translateY(3px); }
-    20% { transform: translateX(8px) translateY(-3px); }
-    30% { transform: translateX(-10px) translateY(5px); }
-    40% { transform: translateX(10px) translateY(-5px); }
-    50% { transform: translateX(-8px) translateY(4px); }
-    60% { transform: translateX(8px) translateY(-4px); }
-    70% { transform: translateX(-6px) translateY(3px); }
+    25% { transform: translateX(-2px) translateY(1px); }
+    50% { transform: translateX(2px) translateY(-1px); }
+    75% { transform: translateX(-1px) translateY(1px); }
+  }
+
+  /* Orta şiddet (3.0 - 4.0) */
+  @keyframes shakeMedium {
+    0%, 100% { transform: translateX(0) translateY(0); }
+    10% { transform: translateX(-4px) translateY(2px); }
+    20% { transform: translateX(5px) translateY(-2px); }
+    30% { transform: translateX(-6px) translateY(3px); }
+    40% { transform: translateX(6px) translateY(-3px); }
+    50% { transform: translateX(-5px) translateY(2px); }
+    60% { transform: translateX(5px) translateY(-2px); }
+    70% { transform: translateX(-4px) translateY(2px); }
+    80% { transform: translateX(3px) translateY(-1px); }
+    90% { transform: translateX(-2px) translateY(1px); }
+  }
+
+  /* Yüksek şiddet (4.0 - 5.0) */
+  @keyframes shakeHigh {
+    0%, 100% { transform: translateX(0) translateY(0); }
+    10% { transform: translateX(-8px) translateY(4px); }
+    20% { transform: translateX(10px) translateY(-4px); }
+    30% { transform: translateX(-12px) translateY(6px); }
+    40% { transform: translateX(12px) translateY(-6px); }
+    50% { transform: translateX(-10px) translateY(5px); }
+    60% { transform: translateX(10px) translateY(-5px); }
+    70% { transform: translateX(-8px) translateY(4px); }
     80% { transform: translateX(6px) translateY(-3px); }
-    90% { transform: translateX(-3px) translateY(2px); }
+    90% { transform: translateX(-4px) translateY(2px); }
+  }
+
+  /* Aşırı şiddet (5.0+) */
+  @keyframes shakeExtreme {
+    0%, 100% { transform: translateX(0) translateY(0); }
+    5% { transform: translateX(-12px) translateY(6px) rotate(-1deg); }
+    10% { transform: translateX(14px) translateY(-6px) rotate(1deg); }
+    15% { transform: translateX(-16px) translateY(8px) rotate(-1.5deg); }
+    20% { transform: translateX(16px) translateY(-8px) rotate(1.5deg); }
+    25% { transform: translateX(-14px) translateY(7px) rotate(-1deg); }
+    30% { transform: translateX(14px) translateY(-7px) rotate(1deg); }
+    35% { transform: translateX(-12px) translateY(6px) rotate(-0.5deg); }
+    40% { transform: translateX(12px) translateY(-6px) rotate(0.5deg); }
+    45% { transform: translateX(-10px) translateY(5px); }
+    50% { transform: translateX(10px) translateY(-5px); }
+    55% { transform: translateX(-8px) translateY(4px); }
+    60% { transform: translateX(8px) translateY(-4px); }
+    65% { transform: translateX(-6px) translateY(3px); }
+    70% { transform: translateX(6px) translateY(-3px); }
+    75% { transform: translateX(-4px) translateY(2px); }
+    80% { transform: translateX(4px) translateY(-2px); }
+    85% { transform: translateX(-3px) translateY(1px); }
+    90% { transform: translateX(2px) translateY(-1px); }
+    95% { transform: translateX(-1px) translateY(1px); }
   }
 
   /* Büyük deprem efekti */
@@ -473,25 +563,58 @@
     95% { transform: translateX(-1px) translateY(1px); }
   }
 
-  /* Alarm overlay efekti */
+  /* Alarm overlay efekti - şiddetine göre */
   :global(.earthquake-alarm-overlay) {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: radial-gradient(circle at center, rgba(220, 38, 38, 0.1) 0%, rgba(220, 38, 38, 0.25) 100%);
     pointer-events: none;
     z-index: 9998;
-    animation: alarmPulse 0.3s ease-in-out 4;
   }
 
-  @keyframes alarmPulse {
+  :global(.earthquake-alarm-overlay.intensity-low) {
+    background: radial-gradient(circle at center, rgba(34, 197, 94, 0.05) 0%, rgba(34, 197, 94, 0.15) 100%);
+    animation: alarmPulseLow 0.4s ease-in-out 2;
+  }
+
+  :global(.earthquake-alarm-overlay.intensity-medium) {
+    background: radial-gradient(circle at center, rgba(234, 179, 8, 0.08) 0%, rgba(234, 179, 8, 0.2) 100%);
+    animation: alarmPulseMedium 0.35s ease-in-out 3;
+  }
+
+  :global(.earthquake-alarm-overlay.intensity-high) {
+    background: radial-gradient(circle at center, rgba(249, 115, 22, 0.1) 0%, rgba(249, 115, 22, 0.25) 100%);
+    animation: alarmPulseHigh 0.3s ease-in-out 4;
+  }
+
+  :global(.earthquake-alarm-overlay.intensity-extreme) {
+    background: radial-gradient(circle at center, rgba(220, 38, 38, 0.15) 0%, rgba(220, 38, 38, 0.35) 100%);
+    animation: alarmPulseExtreme 0.25s ease-in-out 6;
+  }
+
+  @keyframes alarmPulseLow {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.7; }
+  }
+
+  @keyframes alarmPulseMedium {
     0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.85; }
+  }
+
+  @keyframes alarmPulseHigh {
+    0%, 100% { opacity: 0.5; }
     50% { opacity: 1; }
   }
 
-  /* Kırmızı kenar efekti */
+  @keyframes alarmPulseExtreme {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  /* Kenar efekti - şiddetine göre */
   :global(.earthquake-border) {
     position: fixed;
     top: 0;
@@ -500,33 +623,70 @@
     bottom: 0;
     pointer-events: none;
     z-index: 9999;
-    border: 6px solid transparent;
-    animation: borderFlash 0.25s ease-in-out 5;
-    box-shadow: inset 0 0 100px rgba(220, 38, 38, 0.5);
+    border: 4px solid transparent;
   }
 
-  @keyframes borderFlash {
-    0%, 100% { 
-      border-color: transparent;
-      box-shadow: inset 0 0 50px rgba(220, 38, 38, 0.3);
-    }
-    50% { 
-      border-color: #dc2626;
-      box-shadow: inset 0 0 120px rgba(220, 38, 38, 0.7);
-    }
+  :global(.earthquake-border.intensity-low) {
+    animation: borderFlashLow 0.4s ease-in-out 2;
+    box-shadow: inset 0 0 40px rgba(34, 197, 94, 0.3);
   }
 
-  /* Yoğun flash efekti */
+  :global(.earthquake-border.intensity-medium) {
+    border-width: 5px;
+    animation: borderFlashMedium 0.35s ease-in-out 3;
+    box-shadow: inset 0 0 60px rgba(234, 179, 8, 0.4);
+  }
+
+  :global(.earthquake-border.intensity-high) {
+    border-width: 6px;
+    animation: borderFlashHigh 0.3s ease-in-out 4;
+    box-shadow: inset 0 0 80px rgba(249, 115, 22, 0.5);
+  }
+
+  :global(.earthquake-border.intensity-extreme) {
+    border-width: 8px;
+    animation: borderFlashExtreme 0.25s ease-in-out 6;
+    box-shadow: inset 0 0 120px rgba(220, 38, 38, 0.6);
+  }
+
+  @keyframes borderFlashLow {
+    0%, 100% { border-color: transparent; box-shadow: inset 0 0 20px rgba(34, 197, 94, 0.2); }
+    50% { border-color: #22c55e; box-shadow: inset 0 0 50px rgba(34, 197, 94, 0.4); }
+  }
+
+  @keyframes borderFlashMedium {
+    0%, 100% { border-color: transparent; box-shadow: inset 0 0 30px rgba(234, 179, 8, 0.25); }
+    50% { border-color: #eab308; box-shadow: inset 0 0 70px rgba(234, 179, 8, 0.5); }
+  }
+
+  @keyframes borderFlashHigh {
+    0%, 100% { border-color: transparent; box-shadow: inset 0 0 40px rgba(249, 115, 22, 0.3); }
+    50% { border-color: #f97316; box-shadow: inset 0 0 100px rgba(249, 115, 22, 0.6); }
+  }
+
+  @keyframes borderFlashExtreme {
+    0%, 100% { border-color: transparent; box-shadow: inset 0 0 60px rgba(220, 38, 38, 0.4); }
+    50% { border-color: #dc2626; box-shadow: inset 0 0 150px rgba(220, 38, 38, 0.8); }
+  }
+
+  /* Yoğun flash efekti - şiddetine göre */
   :global(.earthquake-flash-intense) {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(220, 38, 38, 0.35);
     pointer-events: none;
     z-index: 10000;
     animation: flashIntense 0.2s ease-out forwards;
+  }
+
+  :global(.earthquake-flash-intense.intensity-high) {
+    background: rgba(249, 115, 22, 0.3);
+  }
+
+  :global(.earthquake-flash-intense.intensity-extreme) {
+    background: rgba(220, 38, 38, 0.4);
   }
 
   @keyframes flashIntense {
