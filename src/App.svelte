@@ -145,6 +145,26 @@
         lastEarthquakeId = earthquake.id;
       });
 
+      // Diğer kullanıcılardan gelen deprem bildirimleri
+      socket.on('userEarthquakeReport', (report) => {
+        console.log('📍 Kullanıcı bildirimi alındı:', report);
+        
+        // Bildirim gönder (başkasının bildirimi)
+        sendUserReportNotification(report, false);
+        
+        // Haritada göster
+        focusEarthquake = {
+          latitude: report.latitude,
+          longitude: report.longitude,
+          magnitude: 0,
+          location: report.locationName,
+          isUserReport: true
+        };
+        
+        // Görsel efekt
+        triggerUserReportEffect();
+      });
+
       socket.on('connect_error', () => {
         console.log('WebSocket bağlantı hatası, fallback moduna geçiliyor');
         connected = false;
@@ -358,22 +378,29 @@
     
     // Yer adı veya koordinat
     const locationText = reportData.locationName || `${reportData.latitude.toFixed(4)}°, ${reportData.longitude.toFixed(4)}°`;
+    const timeText = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
     
-    // Bildirim gönder (eğer izin varsa)
-    if (notificationPermission === 'granted') {
-      new Notification('📍 Deprem Bildirimi Gönderildi', {
-        body: `📍 ${locationText}\n🎯 Doğruluk: ±${Math.round(reportData.accuracy)}m\n⏰ ${new Date().toLocaleTimeString('tr-TR')}`,
-        icon: '/icon/android-icon-192x192.png',
-        tag: 'earthquake-report'
-      });
-    }
+    // Kullanıcı bildirimi oluştur
+    const userReport = {
+      id: `report-${Date.now()}`,
+      type: 'user-report',
+      latitude: reportData.latitude,
+      longitude: reportData.longitude,
+      accuracy: reportData.accuracy,
+      locationName: locationText,
+      timestamp: reportData.timestamp,
+      time: timeText
+    };
 
-    // WebSocket üzerinden diğer kullanıcılara bildir
+    // 1. Butona basan kişiye bildirim gönder
+    sendUserReportNotification(userReport, true);
+    
+    // 2. WebSocket üzerinden diğer kullanıcılara bildir
     if (socket && connected) {
-      socket.emit('earthquakeReport', reportData);
+      socket.emit('earthquakeReport', userReport);
     }
 
-    // Haritada kullanıcının konumunu göster
+    // 3. Haritada kullanıcının konumunu göster
     focusEarthquake = {
       latitude: reportData.latitude,
       longitude: reportData.longitude,
@@ -381,6 +408,92 @@
       location: locationText,
       isUserReport: true
     };
+
+    // 4. Sayfa efekti (hafif mor titreşim)
+    triggerUserReportEffect();
+  }
+
+  // Kullanıcı bildirimi için bildirim gönder
+  function sendUserReportNotification(report, isSelf = false) {
+    // Tarayıcı bildirimi
+    if (notificationPermission === 'granted') {
+      const title = isSelf 
+        ? '✅ Deprem Bildirimi Gönderildi!' 
+        : '🚨 Yeni Deprem Bildirimi!';
+      
+      const body = isSelf
+        ? `📍 ${report.locationName}\n⏰ ${report.time}\n🎯 Doğruluk: ±${Math.round(report.accuracy)}m`
+        : `📍 ${report.locationName}\n⏰ ${report.time}\nBir kullanıcı bu bölgede deprem hissettiğini bildirdi.`;
+
+      try {
+        const notification = new Notification(title, {
+          body: body,
+          icon: '/icon/android-icon-192x192.png',
+          tag: isSelf ? 'earthquake-report-self' : `earthquake-report-${report.id}`,
+          vibrate: isSelf ? [100, 50, 100] : [200, 100, 200],
+          requireInteraction: !isSelf
+        });
+
+        notification.onclick = () => {
+          window.focus();
+          // Haritada bildirilen konuma git
+          focusEarthquake = {
+            latitude: report.latitude,
+            longitude: report.longitude,
+            magnitude: 0,
+            location: report.locationName,
+            isUserReport: true
+          };
+          notification.close();
+        };
+      } catch (e) {
+        console.log('Bildirim gönderilemedi:', e);
+      }
+    }
+
+    // Ses çal (sadece başkasının bildirimi için)
+    if (!isSelf) {
+      playReportSound();
+    }
+  }
+
+  // Kullanıcı bildirimi için ses
+  function playReportSound() {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Farklı bir ses tonu (mor tema için)
+      oscillator.frequency.value = 600;
+      oscillator.type = 'sine';
+      gainNode.gain.value = 0.2;
+      
+      oscillator.start();
+      setTimeout(() => {
+        oscillator.frequency.value = 800;
+      }, 150);
+      setTimeout(() => {
+        oscillator.stop();
+        audioContext.close();
+      }, 300);
+    } catch (e) {
+      // Ses çalınamadı
+    }
+  }
+
+  // Kullanıcı bildirimi için görsel efekt
+  function triggerUserReportEffect() {
+    const overlay = document.createElement('div');
+    overlay.className = 'user-report-overlay';
+    document.body.appendChild(overlay);
+    
+    setTimeout(() => {
+      overlay.remove();
+    }, 1000);
   }
 </script>
 
@@ -852,5 +965,23 @@
 
   :global(::-webkit-scrollbar-thumb:hover) {
     background: var(--text-secondary);
+  }
+
+  /* Kullanıcı bildirimi overlay efekti */
+  :global(.user-report-overlay) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 9998;
+    background: radial-gradient(circle at center, rgba(168, 85, 247, 0.1) 0%, rgba(168, 85, 247, 0.2) 100%);
+    animation: userReportPulse 0.5s ease-in-out 2;
+  }
+
+  @keyframes userReportPulse {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
   }
 </style>
