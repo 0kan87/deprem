@@ -356,10 +356,13 @@
     const reportData = event.detail;
     console.log('🚨 Deprem bildirimi alındı:', reportData);
     
+    // Yer adı veya koordinat
+    const locationText = reportData.locationName || `${reportData.latitude.toFixed(4)}°, ${reportData.longitude.toFixed(4)}°`;
+    
     // Bildirim gönder (eğer izin varsa)
     if (notificationPermission === 'granted') {
       new Notification('📍 Deprem Bildirimi Gönderildi', {
-        body: `Konumunuz: ${reportData.latitude.toFixed(4)}°, ${reportData.longitude.toFixed(4)}°\nDoğruluk: ±${Math.round(reportData.accuracy)}m`,
+        body: `📍 ${locationText}\n🎯 Doğruluk: ±${Math.round(reportData.accuracy)}m\n⏰ ${new Date().toLocaleTimeString('tr-TR')}`,
         icon: '/icon/android-icon-192x192.png',
         tag: 'earthquake-report'
       });
@@ -370,12 +373,12 @@
       socket.emit('earthquakeReport', reportData);
     }
 
-    // Haritada kullanıcının konumunu göster (opsiyonel)
+    // Haritada kullanıcının konumunu göster
     focusEarthquake = {
       latitude: reportData.latitude,
       longitude: reportData.longitude,
       magnitude: 0,
-      location: 'Kullanıcı Bildirimi',
+      location: locationText,
       isUserReport: true
     };
   }

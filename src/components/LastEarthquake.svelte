@@ -52,16 +52,29 @@
       }
 
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           userLocation = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy
+            accuracy: position.coords.accuracy,
+            locationName: null
           };
+          
+          // Yer adını al
+          try {
+            const locationName = await getLocationName(position.coords.latitude, position.coords.longitude);
+            userLocation.locationName = locationName;
+          } catch (e) {
+            console.log('Yer adı alınamadı:', e);
+          }
+          
           resolve(userLocation);
         },
         (error) => {
-          console.error('Konum alınamadı:', error);
+          // Hata durumunda sessizce işle
+          if (error.code === 1) {
+            locationPermission = 'denied';
+          }
           reject(error);
         },
         {
@@ -71,6 +84,56 @@
         }
       );
     });
+  }
+
+  // Koordinatlardan yer adı al (Reverse Geocoding)
+  async function getLocationName(lat, lng) {
+    try {
+      // Nominatim OpenStreetMap API kullanıyoruz (ücretsiz)
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1&accept-language=tr`,
+        {
+          headers: {
+            'User-Agent': 'DepremTakip/1.0'
+          }
+        }
+      );
+      
+      if (!response.ok) throw new Error('Geocoding API hatası');
+      
+      const data = await response.json();
+      
+      if (data && data.address) {
+        const addr = data.address;
+        // Öncelik sırasına göre yer adı oluştur
+        const parts = [];
+        
+        if (addr.neighbourhood || addr.suburb || addr.quarter) {
+          parts.push(addr.neighbourhood || addr.suburb || addr.quarter);
+        }
+        if (addr.town || addr.district || addr.county) {
+          parts.push(addr.town || addr.district || addr.county);
+        }
+        if (addr.city || addr.province || addr.state) {
+          parts.push(addr.city || addr.province || addr.state);
+        }
+        
+        if (parts.length > 0) {
+          return parts.join(', ');
+        }
+        
+        // Fallback: display_name'in kısa versiyonu
+        if (data.display_name) {
+          const shortName = data.display_name.split(',').slice(0, 3).join(',');
+          return shortName;
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      console.log('Reverse geocoding hatası:', e);
+      return null;
+    }
   }
 
   // Konum izni iste
@@ -91,6 +154,12 @@
   async function reportEarthquake() {
     if (reportCooldown || isReporting) return;
 
+    // Konum izni reddedilmişse uyarı göster
+    if (locationPermission === 'denied') {
+      alert('Deprem bildirmek için konum izni gereklidir. Lütfen tarayıcı ayarlarından konum iznini etkinleştirin.');
+      return;
+    }
+
     isReporting = true;
 
     try {
@@ -99,6 +168,9 @@
         const location = await requestLocationPermission();
         if (!location) {
           isReporting = false;
+          if (locationPermission === 'denied') {
+            alert('Konum izni reddedildi. Deprem bildirmek için konum izni gereklidir.');
+          }
           return;
         }
       } else if (!userLocation) {
@@ -111,11 +183,21 @@
         return;
       }
 
+      // Eğer yer adı henüz alınmadıysa tekrar dene
+      if (!userLocation.locationName) {
+        try {
+          userLocation.locationName = await getLocationName(userLocation.latitude, userLocation.longitude);
+        } catch (e) {
+          // Yer adı alınamazsa koordinatları kullan
+        }
+      }
+
       // Bildirimi gönder
       dispatch('reportEarthquake', {
         latitude: userLocation.latitude,
         longitude: userLocation.longitude,
         accuracy: userLocation.accuracy,
+        locationName: userLocation.locationName || `${userLocation.latitude.toFixed(4)}°, ${userLocation.longitude.toFixed(4)}°`,
         timestamp: new Date().toISOString()
       });
 
@@ -133,7 +215,7 @@
       }, 30000);
 
     } catch (e) {
-      console.error('Deprem bildirimi gönderilemedi:', e);
+      console.log('Deprem bildirimi gönderilemedi:', e);
       alert('Bildirim gönderilemedi. Lütfen tekrar deneyin.');
     }
 
