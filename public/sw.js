@@ -1,9 +1,6 @@
-const CACHE_NAME = 'deprem-takip-v3';
+const CACHE_NAME = 'deprem-takip-v4';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/icon/favicon.ico',
-  '/icon/android-icon-192x192.png'
+  '/'
 ];
 
 // Service Worker kurulumu
@@ -13,6 +10,9 @@ self.addEventListener('install', (event) => {
       .then((cache) => {
         console.log('Cache açıldı');
         return cache.addAll(urlsToCache);
+      })
+      .catch((err) => {
+        console.log('Cache kurulum hatası:', err);
       })
   );
   self.skipWaiting();
@@ -37,12 +37,19 @@ self.addEventListener('activate', (event) => {
 
 // Fetch istekleri
 self.addEventListener('fetch', (event) => {
-  // Sadece http ve https isteklerini işle (chrome-extension vb. hariç)
+  // Sadece http ve https isteklerini işle
   if (!event.request.url.startsWith('http')) {
     return;
   }
 
-  // API isteklerini cache'leme
+  // WebSocket ve socket.io isteklerini atla
+  if (event.request.url.includes('socket.io') || 
+      event.request.url.includes('ws://') || 
+      event.request.url.includes('wss://')) {
+    return;
+  }
+
+  // API isteklerini cache'leme - network first
   if (event.request.url.includes('api.orhanaydogdu.com.tr')) {
     event.respondWith(
       fetch(event.request)
@@ -56,11 +63,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // WebSocket ve socket.io isteklerini atla
-  if (event.request.url.includes('socket.io') || event.request.url.includes('ws://') || event.request.url.includes('wss://')) {
-    return;
-  }
-
+  // Diğer istekler - cache first, network fallback
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -69,29 +72,24 @@ self.addEventListener('fetch', (event) => {
         }
         return fetch(event.request)
           .then((response) => {
-            // Sadece başarılı ve basic tipindeki yanıtları cache'le
-            if (!response || response.status !== 200 || response.type !== 'basic') {
+            // Sadece başarılı yanıtları cache'le
+            if (!response || response.status !== 200) {
               return response;
             }
             
-            // Clone response before caching
-            const responseToCache = response.clone();
-            
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                // Sadece http/https isteklerini cache'le
-                if (event.request.url.startsWith('http')) {
+            // Sadece same-origin isteklerini cache'le
+            if (response.type === 'basic') {
+              const responseToCache = response.clone();
+              caches.open(CACHE_NAME)
+                .then((cache) => {
                   cache.put(event.request, responseToCache);
-                }
-              })
-              .catch((err) => {
-                console.log('Cache hatası:', err);
-              });
+                })
+                .catch(() => {});
+            }
             
             return response;
           })
           .catch(() => {
-            // Offline durumunda cache'den dön
             return caches.match('/');
           });
       })
