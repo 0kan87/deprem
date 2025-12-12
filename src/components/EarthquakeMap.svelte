@@ -24,23 +24,18 @@
   const TURKEY_CENTER = [38.5, 35.5];
   const DEFAULT_ZOOM = 7;
 
-  // USGS ve ArcGIS gerçek tektonik levha servisleri
+  // USGS Gerçek Tektonik ve Jeoloji Servisleri
   const tectonicServices = {
-    // USGS Tektonik Levhalar (Resmi USGS verisi)
-    plates: {
-      url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places_Alternate/MapServer/tile/{z}/{y}/{x}',
-      wms: 'https://earthquake.usgs.gov/arcgis/services/hazards/tectonic_plates/MapServer/WMSServer',
-      esri: 'https://services.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer'
+    // Ana USGS servisleri
+    usgs: {
+      plates: 'https://earthquake.usgs.gov/arcgis/rest/services/hazards/tectonic_plates/MapServer',
+      faults: 'https://earthquake.usgs.gov/arcgis/rest/services/hazards/quaternary_faults/MapServer',
+      hazards: 'https://earthquake.usgs.gov/arcgis/rest/services/eq/hazards_temps_2014/MapServer'
     },
-    // USGS Fay Hatları
-    faults: {
-      url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer',
-      quaternary: 'https://earthquake.usgs.gov/arcgis/services/hazards/quaternary_faults/MapServer/WMSServer'
-    },
-    // ArcGIS World Tectonic Plates
-    worldPlates: {
-      url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer',
-      tectonic: 'https://sampleserver1.arcgisonline.com/ArcGIS/rest/services/Specialty/ESRI_StatesCitiesRivers_USA/MapServer'
+    // World Geological Survey
+    esri: {
+      geology: 'https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer',
+      world: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer'
     }
   };
 
@@ -205,59 +200,68 @@
     // Layer group oluştur - birden fazla katman için
     tectonicLayer = L.layerGroup();
 
-    // 1. USGS Tektonik Levhalar WMS Katmanı
-    const usgsPlatesWMS = L.tileLayer.wms('https://earthquake.usgs.gov/arcgis/services/hazards/tectonic_plates/MapServer/WMSServer', {
-      layers: '0',
-      format: 'image/png',
-      transparent: true,
-      opacity: 0.6,
+    // 1. USGS Tektonik Levhalar (Tile Layer)
+    const usgsPlatesTiles = L.tileLayer('https://earthquake.usgs.gov/arcgis/rest/services/hazards/tectonic_plates/MapServer/tile/{z}/{y}/{x}', {
+      opacity: 0.7,
       attribution: '© USGS Earthquake Hazards Program'
     });
 
-    // 2. ArcGIS World Geological Map (Fay hatları için)
-    const esriGeologyLayer = L.esri.dynamicMapLayer({
-      url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer',
-      opacity: 0.5,
-      attribution: '© Esri, USGS'
-    });
-
-    // 3. USGS Quaternary Faults WMS
-    const ussgsFaultsWMS = L.tileLayer.wms('https://earthquake.usgs.gov/arcgis/services/hazards/quaternary_faults/MapServer/WMSServer', {
-      layers: '0,1,2',
-      format: 'image/png',
-      transparent: true,
-      opacity: 0.7,
+    // 2. USGS Fay Hatları (Tile Layer) 
+    const usgsFaultsTiles = L.tileLayer('https://earthquake.usgs.gov/arcgis/rest/services/hazards/quaternary_faults/MapServer/tile/{z}/{y}/{x}', {
+      opacity: 0.8,
       attribution: '© USGS Quaternary Fault Database'
     });
 
-    // Fallback: Eğer WMS çalışmazsa, basit ArcGIS tile layer
-    const fallbackTectonicTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer/tile/{z}/{y}/{x}', {
-      opacity: 0.5,
+    // 3. World Tectonic Features (Alternative)
+    const worldTectonicTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer/tile/{z}/{y}/{x}', {
+      opacity: 0.6,
       attribution: '© Esri, USGS, NOAA'
     });
 
+    // 4. USGS Hazards (Combined) - En güvenilir seçenek
+    const usgsHazardsTiles = L.tileLayer('https://earthquake.usgs.gov/arcgis/rest/services/eq/hazards_temps_2014/MapServer/tile/{z}/{y}/{x}', {
+      opacity: 0.5,
+      attribution: '© USGS'
+    });
+
+    // Zoom seviyesine göre layer'ları ekle
     try {
-      // WMS katmanlarını ekle
-      tectonicLayer.addLayer(usgsPlatesWMS);
-      tectonicLayer.addLayer(ussgsFaultsWMS);
+      // Ana tektonik levhalar (hep görünür)
+      tectonicLayer.addLayer(usgsPlatesTiles);
       
-      // Eğer ESRI Leaflet plugin varsa geological layer'ı da ekle
-      if (typeof L.esri !== 'undefined') {
-        tectonicLayer.addLayer(esriGeologyLayer);
-      } else {
-        // Fallback tile layer kullan
-        tectonicLayer.addLayer(fallbackTectonicTiles);
-      }
+      // Fay hatları (zoom > 6'da görünür)
+      const faultsWithZoom = L.tileLayer('https://earthquake.usgs.gov/arcgis/rest/services/hazards/quaternary_faults/MapServer/tile/{z}/{y}/{x}', {
+        opacity: 0.8,
+        attribution: '© USGS Quaternary Fault Database',
+        minZoom: 6
+      });
+      tectonicLayer.addLayer(faultsWithZoom);
+      
+      // Detaylı jeoloji (zoom > 8'de görünür)  
+      const detailedGeology = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer/tile/{z}/{y}/{x}', {
+        opacity: 0.4,
+        attribution: '© Esri, USGS, NOAA',
+        minZoom: 8
+      });
+      tectonicLayer.addLayer(detailedGeology);
+
+      console.log('✅ USGS Tektonik katmanları yüklendi');
     } catch (error) {
-      console.log('WMS katmanları yüklenemedi, fallback kullanılıyor:', error);
-      // Hata durumunda sadece fallback tile layer kullan
-      tectonicLayer.addLayer(fallbackTectonicTiles);
+      console.error('❌ Tektonik katman hatası:', error);
+      
+      // En güvenilir fallback
+      const reliableFallback = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer/tile/{z}/{y}/{x}', {
+        opacity: 0.6,
+        attribution: '© Esri Geological Survey',
+        errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+      });
+      tectonicLayer.addLayer(reliableFallback);
     }
 
     // Layer group'u haritaya ekle
     tectonicLayer.addTo(map);
 
-    // Bilgi popup'ı ekle (tıklanabilir alan oluştur)
+    // Bilgi kontrol paneli
     const infoControl = L.control({ position: 'bottomleft' });
     infoControl.onAdd = function() {
       const div = L.DomUtil.create('div', 'tectonic-info-control');
@@ -271,13 +275,16 @@
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
           font-size: 0.8rem;
           color: var(--text-primary);
-          max-width: 200px;
+          max-width: 220px;
         ">
-          <div style="font-weight: 600; margin-bottom: 0.25rem;">🌍 Tektonik Veriler</div>
-          <div style="color: var(--text-secondary); line-height: 1.4;">
-            • USGS resmi tektonik levhalar<br>
-            • Kuvaterner fay sistemleri<br>
-            • World Geological Map
+          <div style="font-weight: 600; margin-bottom: 0.25rem; color: #dc2626;">🌍 Tektonik Katmanlar</div>
+          <div style="color: var(--text-secondary); line-height: 1.4; font-size: 0.75rem;">
+            🔴 USGS Tektonik Levhalar<br>
+            🟠 Kuvaterner Fay Sistemleri<br>
+            🟡 Dünya Jeoloji Haritası<br>
+            <div style="margin-top: 0.5rem; font-size: 0.7rem; opacity: 0.8;">
+              Kaynak: USGS • Esri
+            </div>
           </div>
         </div>
       `;
