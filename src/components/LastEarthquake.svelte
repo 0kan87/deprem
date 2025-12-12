@@ -851,6 +851,39 @@
       gap: 0.625rem;
     }
 
+    /* Widget 3 ve 4'ü (Bugün ve Ortalama) yan yana koy */
+    .widget:nth-child(3),
+    .widget:nth-child(4) {
+      grid-column: span 1;
+    }
+
+    .widget:nth-child(3) {
+      grid-row: 3;
+      grid-column: 1;
+    }
+
+    .widget:nth-child(4) {
+      grid-row: 3;
+      grid-column: 2;
+    }
+
+    /* Grid'i yeniden düzenle */
+    .widgets-row {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto auto auto;
+    }
+
+    /* Widget 1 ve 2 full width */
+    .widget:nth-child(1),
+    .widget:nth-child(2) {
+      grid-column: 1 / -1;
+    }
+
+    /* Widget 5 full width */
+    .widget:nth-child(5) {
+      grid-column: 1 / -1;
+    }
+
     .widget {
       padding: 0.75rem;
     }
