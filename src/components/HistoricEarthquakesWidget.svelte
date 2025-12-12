@@ -217,11 +217,9 @@
             >
               <div class="earthquake-header">
                 <div class="earthquake-name">{earthquake.name}</div>
-                {#if !isMobile}
-                  <div class="earthquake-magnitude" style="background-color: {getMagnitudeColor(earthquake.magnitude)};">
-                    {earthquake.magnitude}
-                  </div>
-                {/if}
+                <div class="earthquake-magnitude" style="background-color: {getMagnitudeColor(earthquake.magnitude)};">
+                  {earthquake.magnitude}
+                </div>
               </div>
               
               <div class="earthquake-details">

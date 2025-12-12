@@ -86,8 +86,9 @@
     handleDeviceMotion = (event) => {
       if (locationPermission !== 'granted' || reportCooldown || isReporting) return;
       
-      const acceleration = event.accelerationIncludingGravity;
-      if (!acceleration) return;
+      // iOS ve Android için farklı acceleration kaynakları dene
+      const acceleration = event.accelerationIncludingGravity || event.acceleration;
+      if (!acceleration || !acceleration.x || !acceleration.y || !acceleration.z) return;
       
       const now = Date.now();
       const timeDiff = now - lastShakeTime;
@@ -98,16 +99,19 @@
       const { x, y, z } = acceleration;
       const totalAcceleration = Math.sqrt(x*x + y*y + z*z);
       
-      // Sallama eşiği (15-20 arası hassasiyet)
-      const shakeThreshold = 18;
+      // iOS için daha düşük eşik (iPhone genelde daha düşük değerler veriyor)
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const shakeThreshold = isIOS ? 12 : 18;
+      
+      console.log(`📱 Acceleration: ${totalAcceleration.toFixed(2)}, Threshold: ${shakeThreshold}, iOS: ${isIOS}`);
       
       if (totalAcceleration > shakeThreshold) {
         lastShakeTime = now;
-        console.log('📱 Telefon sallandı, deprem bildirimi gönderiliyor...');
+        console.log('📱 Telefon sallandı! Deprem bildirimi gönderiliyor...');
         
         // Haptic feedback (titreşim)
         if (navigator.vibrate) {
-          navigator.vibrate(200);
+          navigator.vibrate([200, 50, 200]);
         }
         
         // Deprem bildirimi gönder
@@ -132,18 +136,38 @@
   function enableShakeDetection() {
     if (locationPermission === 'granted' && window.DeviceMotionEvent) {
       if (typeof DeviceMotionEvent.requestPermission === 'function') {
-        // iOS 13+ için motion izni iste
+        // iOS 13+ için motion izni iste - kullanıcı etkileşimi gerekli
+        console.log('📱 iOS motion izni isteniyor...');
         DeviceMotionEvent.requestPermission()
           .then(response => {
+            console.log('📱 iOS motion izin yanıtı:', response);
             if (response === 'granted') {
               startShakeDetection();
+            } else {
+              console.log('📱 iOS motion izni reddedildi');
             }
           })
-          .catch(console.error);
+          .catch(err => {
+            console.error('📱 iOS motion izin hatası:', err);
+          });
       } else {
         // Android ve eski iOS için direkt başlat
         startShakeDetection();
       }
+    }
+  }
+
+  // iOS için motion permission button
+  function requestMotionPermission() {
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      DeviceMotionEvent.requestPermission()
+        .then(response => {
+          console.log('📱 Motion permission response:', response);
+          if (response === 'granted') {
+            enableShakeDetection();
+          }
+        })
+        .catch(console.error);
     }
   }
 
@@ -247,6 +271,18 @@
     if (locationPermission === 'denied') {
       alert('Deprem bildirmek için konum izni gereklidir.\n\nTarayıcı ayarlarından bu site için konum iznini sıfırlayıp sayfayı yenileyin.');
       return;
+    }
+
+    // iOS motion permission - sadece ilk kez çağrıldığında
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function' && !shakeDetectionActive) {
+      try {
+        const permission = await DeviceMotionEvent.requestPermission();
+        if (permission === 'granted') {
+          enableShakeDetection();
+        }
+      } catch (error) {
+        console.log('Motion permission request failed:', error);
+      }
     }
 
     isReporting = true;
@@ -548,6 +584,9 @@
             <span class="report-sub-text">
               {#if locationPermission === 'granted'}
                 Tıklayarak veya telefonunu sallayarak herkese bildirin
+                {#if typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'}
+                  <br><small style="color: #f59e0b;">iOS: Motion izni için tıklayın</small>
+                {/if}
               {:else}
                 Konum izni vererek bildirin
               {/if}

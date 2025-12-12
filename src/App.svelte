@@ -418,8 +418,29 @@
   let selectedEarthquake = null;
 
   function handleEarthquakeSelect(event) {
-    selectedEarthquake = event.detail;
-    focusEarthquake = event.detail;
+    const earthquake = event.detail;
+    selectedEarthquake = earthquake;
+    focusEarthquake = earthquake;
+    
+    // Deprem seçildiğinde büyüklüğe göre titreşim
+    if (navigator.vibrate && earthquake && earthquake.magnitude) {
+      const magnitude = earthquake.magnitude;
+      let vibrationPattern = [100]; // Varsayılan kısa titreşim
+      
+      if (magnitude >= 6.0) {
+        vibrationPattern = [150, 50, 150, 50, 150]; // Çok güçlü
+      } else if (magnitude >= 5.0) {
+        vibrationPattern = [120, 40, 120, 40, 120]; // Güçlü
+      } else if (magnitude >= 4.0) {
+        vibrationPattern = [100, 30, 100, 30, 100]; // Orta-güçlü
+      } else if (magnitude >= 3.0) {
+        vibrationPattern = [80, 30, 80]; // Orta
+      } else if (magnitude >= 2.0) {
+        vibrationPattern = [60, 20, 60]; // Hafif
+      }
+      
+      navigator.vibrate(vibrationPattern);
+    }
   }
 
   // Deprem bildirimi işle
@@ -1214,7 +1235,13 @@
     }
 
     .map-container {
-      min-height: 320px;
+      min-height: 600px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .map-container {
+      min-height: 650px;
     }
   }
 
