@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import L from 'leaflet';
+  import HistoricEarthquakesWidget from './HistoricEarthquakesWidget.svelte';
 
   export let earthquakes = [];
   export let selectedEarthquake = null;
@@ -19,23 +20,25 @@
   let currentLastId = null;
   let userReportMarker = null;
   let userReportTimeout = null;
-  let showTectonicPlates = false;
+  let currentZoom = DEFAULT_ZOOM;
 
   const TURKEY_CENTER = [38.5, 35.5];
   const DEFAULT_ZOOM = 7;
 
-  // USGS Gerçek Tektonik ve Jeoloji Servisleri
+  // Çalışan Tektonik ve Jeoloji Servisleri
   const tectonicServices = {
-    // Ana USGS servisleri
-    usgs: {
-      plates: 'https://earthquake.usgs.gov/arcgis/rest/services/hazards/tectonic_plates/MapServer',
-      faults: 'https://earthquake.usgs.gov/arcgis/rest/services/hazards/quaternary_faults/MapServer',
-      hazards: 'https://earthquake.usgs.gov/arcgis/rest/services/eq/hazards_temps_2014/MapServer'
+    // ÇALIŞAN Alternatif servisler
+    working: {
+      // Çalışan tektonik levha katmanları
+      plates: 'https://services.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer',
+      // OpenStreetMap tabanlı jeoloji
+      geology: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      // Terrain katmanı
+      terrain: 'https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg'
     },
-    // World Geological Survey
-    esri: {
-      geology: 'https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer',
-      world: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer'
+    // GitHub'daki açık veri kaynakları
+    github: {
+      boundaries: 'https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_boundaries.json'
     }
   };
 
@@ -183,135 +186,263 @@
     }).addTo(map);
   }
 
-  // Tektonik levhaları göster/gizle
-  function toggleTectonicPlates() {
-    showTectonicPlates = !showTectonicPlates;
-    
-    if (showTectonicPlates) {
-      addTectonicPlates();
-    } else {
-      removeTectonicPlates();
+  // Fay hatları için değişkenler  
+  let showFaultLines = false;
+  let faultsLayer = null;
+  
+  // Tarihi depremler için değişkenler
+  let historicEarthquakeMarker = null;
+  let selectedHistoricEarthquake = null;
+
+
+
+  // Fay hatlarını yükle (GeoJSON)
+  async function addFaultLines() {
+    if (!map || faultsLayer) return;
+
+    try {
+      console.log('🔄 Fay hatları yükleniyor...');
+      
+      // GitHub'dan sınır verisi çek (fay hatları)
+      const response = await fetch(tectonicServices.github.boundaries);
+      const faultsData = await response.json();
+      
+      faultsLayer = L.geoJSON(faultsData, {
+        style: {
+          color: '#dc2626',
+          weight: 2,
+          opacity: 0.9,
+          dashArray: '5, 5'
+        },
+        onEachFeature: function(feature, layer) {
+          layer.bindPopup(`
+            <div class="fault-popup">
+              <h4>⚡ Fay Hattı</h4>
+              <p>Tektonik Sınır</p>
+              <small>Deprem Riski: Yüksek</small>
+            </div>
+          `);
+        }
+      });
+      
+      faultsLayer.addTo(map);
+      console.log('✅ Fay hatları yüklendi');
+    } catch (error) {
+      console.error('❌ Fay hatları yükleme hatası:', error);
     }
   }
 
-  function addTectonicPlates() {
-    if (!map || tectonicLayer) return;
 
-    // Layer group oluştur - birden fazla katman için
-    tectonicLayer = L.layerGroup();
 
-    // 1. USGS Tektonik Levhalar (Tile Layer)
-    const usgsPlatesTiles = L.tileLayer('https://earthquake.usgs.gov/arcgis/rest/services/hazards/tectonic_plates/MapServer/tile/{z}/{y}/{x}', {
-      opacity: 0.7,
-      attribution: '© USGS Earthquake Hazards Program'
-    });
-
-    // 2. USGS Fay Hatları (Tile Layer) 
-    const usgsFaultsTiles = L.tileLayer('https://earthquake.usgs.gov/arcgis/rest/services/hazards/quaternary_faults/MapServer/tile/{z}/{y}/{x}', {
-      opacity: 0.8,
-      attribution: '© USGS Quaternary Fault Database'
-    });
-
-    // 3. World Tectonic Features (Alternative)
-    const worldTectonicTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer/tile/{z}/{y}/{x}', {
-      opacity: 0.6,
-      attribution: '© Esri, USGS, NOAA'
-    });
-
-    // 4. USGS Hazards (Combined) - En güvenilir seçenek
-    const usgsHazardsTiles = L.tileLayer('https://earthquake.usgs.gov/arcgis/rest/services/eq/hazards_temps_2014/MapServer/tile/{z}/{y}/{x}', {
-      opacity: 0.5,
-      attribution: '© USGS'
-    });
-
-    // Zoom seviyesine göre layer'ları ekle
-    try {
-      // Ana tektonik levhalar (hep görünür)
-      tectonicLayer.addLayer(usgsPlatesTiles);
-      
-      // Fay hatları (zoom > 6'da görünür)
-      const faultsWithZoom = L.tileLayer('https://earthquake.usgs.gov/arcgis/rest/services/hazards/quaternary_faults/MapServer/tile/{z}/{y}/{x}', {
-        opacity: 0.8,
-        attribution: '© USGS Quaternary Fault Database',
-        minZoom: 6
-      });
-      tectonicLayer.addLayer(faultsWithZoom);
-      
-      // Detaylı jeoloji (zoom > 8'de görünür)  
-      const detailedGeology = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer/tile/{z}/{y}/{x}', {
-        opacity: 0.4,
-        attribution: '© Esri, USGS, NOAA',
-        minZoom: 8
-      });
-      tectonicLayer.addLayer(detailedGeology);
-
-      console.log('✅ USGS Tektonik katmanları yüklendi');
-    } catch (error) {
-      console.error('❌ Tektonik katman hatası:', error);
-      
-      // En güvenilir fallback
-      const reliableFallback = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer/tile/{z}/{y}/{x}', {
-        opacity: 0.6,
-        attribution: '© Esri Geological Survey',
-        errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
-      });
-      tectonicLayer.addLayer(reliableFallback);
+  // Fay hatlarını toggle  
+  function toggleFaultLines() {
+    showFaultLines = !showFaultLines;
+    
+    if (showFaultLines) {
+      addFaultLines();
+    } else {
+      removeFaultLines();
     }
+  }
 
-    // Layer group'u haritaya ekle
-    tectonicLayer.addTo(map);
+  // Tarihi deprem seçildiğinde çağrılır
+  function handleHistoricEarthquakeSelected(event) {
+    const earthquake = event.detail;
+    selectedHistoricEarthquake = earthquake;
+    
+    // Önceki marker'ı temizle
+    if (historicEarthquakeMarker) {
+      map.removeLayer(historicEarthquakeMarker);
+    }
+    
+    // Yeni marker ekle
+    addHistoricEarthquakeMarker(earthquake);
+    
+    // Haritayı o bölgeye götür
+    map.setView([earthquake.coordinates[0], earthquake.coordinates[1]], 8);
+  }
+  
+  // Deprem efekti tetikle
+  function handleEarthquakeEffect(event) {
+    const earthquake = event.detail;
+    triggerEarthquakeEffect(earthquake);
+  }
+  
+  function triggerEarthquakeEffect(earthquake) {
+    if (!earthquake) return;
+    
+    const magnitude = earthquake.magnitude;
+    
+    // Şiddet seviyesi belirleme
+    let intensity = 'low'; // < 6.0
+    if (magnitude >= 8.0) intensity = 'extreme';
+    else if (magnitude >= 7.0) intensity = 'high';
+    else if (magnitude >= 6.0) intensity = 'medium';
+    
+    // Alarm overlay (renk efekti)
+    const overlay = document.createElement('div');
+    overlay.className = `earthquake-alarm-overlay intensity-${intensity}`;
+    document.body.appendChild(overlay);
+    
+    // Sayfa sallama efekti
+    document.body.classList.remove('shake-light', 'shake-moderate', 'shake-major');
+    document.body.classList.add('page-shake', `shake-${intensity}`);
+    
+    // Kenar efekti (renk çerçeve)
+    const border = document.createElement('div');
+    border.className = `earthquake-border intensity-${intensity}`;
+    document.body.appendChild(border);
 
-    // Bilgi kontrol paneli
-    const infoControl = L.control({ position: 'bottomleft' });
-    infoControl.onAdd = function() {
-      const div = L.DomUtil.create('div', 'tectonic-info-control');
-      div.innerHTML = `
-        <div class="tectonic-info-popup" style="
-          background: var(--bg-card); 
-          padding: 0.75rem; 
-          border-radius: 8px; 
-          border: 1px solid var(--border-color);
-          backdrop-filter: blur(10px);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-          font-size: 0.8rem;
-          color: var(--text-primary);
-          max-width: 220px;
-        ">
-          <div style="font-weight: 600; margin-bottom: 0.25rem; color: #dc2626;">🌍 Tektonik Katmanlar</div>
-          <div style="color: var(--text-secondary); line-height: 1.4; font-size: 0.75rem;">
-            🔴 USGS Tektonik Levhalar<br>
-            🟠 Kuvaterner Fay Sistemleri<br>
-            🟡 Dünya Jeoloji Haritası<br>
-            <div style="margin-top: 0.5rem; font-size: 0.7rem; opacity: 0.8;">
-              Kaynak: USGS • Esri
-            </div>
+    // Büyüklüğe göre efekt süresi
+    let duration = 1000;
+    if (magnitude >= 8.0) duration = 4000;
+    else if (magnitude >= 7.0) duration = 3000;
+    else if (magnitude >= 6.0) duration = 2500;
+
+    // Temizlik işlemi
+    setTimeout(() => {
+      document.body.classList.remove('page-shake', `shake-${intensity}`);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      if (border.parentNode) border.parentNode.removeChild(border);
+    }, duration);
+  }
+
+  function addHistoricEarthquakeMarker(earthquake) {
+    if (!map) return;
+
+    // Doğru renk ve animasyon için
+    const color = getMagnitudeColor(earthquake.magnitude);
+    const sizeMultiplier = Math.max(1.2, earthquake.magnitude * 0.15);
+    const pulseClass = earthquake.magnitude >= 7.0 ? 'extreme-pulse' : earthquake.magnitude >= 5.0 ? 'strong-pulse' : 'normal-pulse';
+    
+    // Tarihi deprem için özel ikon
+    const historicIcon = L.divIcon({
+      html: `
+        <div class="historic-marker ${pulseClass}" data-magnitude="${earthquake.magnitude}" style="--marker-color: ${color}; --marker-size: ${sizeMultiplier};">
+          <div class="historic-marker-inner">
+            <div class="historic-magnitude">${earthquake.magnitude}</div>
+            <div class="historic-year">${earthquake.date.split(' ').pop()}</div>
+          </div>
+          <div class="historic-pulse-1"></div>
+          <div class="historic-pulse-2"></div>
+          <div class="historic-pulse-3"></div>
+        </div>
+      `,
+      className: 'historic-earthquake-marker',
+      iconSize: [60, 60],
+      iconAnchor: [30, 30]
+    });
+
+    historicEarthquakeMarker = L.marker([earthquake.coordinates[0], earthquake.coordinates[1]], { 
+      icon: historicIcon,
+      zIndexOffset: 2000 // En üstte göster
+    });
+
+    // Detaylı popup
+    const popupContent = `
+      <div class="historic-popup">
+        <div class="historic-popup-header">
+          <div class="historic-popup-title">⚡ ${earthquake.name}</div>
+          <div class="historic-popup-magnitude" style="background: ${color}">
+            ${earthquake.magnitude}
           </div>
         </div>
-      `;
-      return div;
-    };
-    infoControl.addTo(map);
-    
-    // Info control'ü tectonicLayer'a bağla (temizlik için)
-    tectonicLayer._infoControl = infoControl;
+        
+        <div class="historic-popup-content">
+          <div class="historic-detail-row">
+            <span class="detail-icon">📅</span>
+            <span><strong>Tarih:</strong> ${earthquake.date}</span>
+          </div>
+          <div class="historic-detail-row">
+            <span class="detail-icon">📍</span>
+            <span><strong>Konum:</strong> ${earthquake.location}</span>
+          </div>
+          <div class="historic-detail-row">
+            <span class="detail-icon">🌍</span>
+            <span><strong>Koordinat:</strong> ${earthquake.coordinates[0].toFixed(3)}, ${earthquake.coordinates[1].toFixed(3)}</span>
+          </div>
+          <div class="historic-detail-row">
+            <span class="detail-icon">💀</span>
+            <span><strong>Ölü:</strong> ${formatNumber(earthquake.deaths)} kişi</span>
+          </div>
+          <div class="historic-detail-row">
+            <span class="detail-icon">🤕</span>
+            <span><strong>Yaralı:</strong> ${formatNumber(earthquake.injured)} kişi</span>
+          </div>
+          <div class="historic-detail-row">
+            <span class="detail-icon">🏠</span>
+            <span><strong>Evsiz:</strong> ${formatNumber(earthquake.homeless)} kişi</span>
+          </div>
+          <div class="historic-detail-row">
+            <span class="detail-icon">💰</span>
+            <span><strong>Hasar:</strong> ${earthquake.damage}</span>
+          </div>
+          <div class="historic-detail-row">
+            <span class="detail-icon">⏱️</span>
+            <span><strong>Süre:</strong> ${earthquake.duration}</span>
+          </div>
+          <div class="historic-detail-row">
+            <span class="detail-icon">📏</span>
+            <span><strong>Derinlik:</strong> ${earthquake.depth}</span>
+          </div>
+        </div>
+        
+        <div class="historic-description">
+          <strong>📝 Açıklama:</strong><br>
+          ${earthquake.description}
+        </div>
+        
+        <div class="affected-cities">
+          <strong>🏙️ Etkilenen Şehirler:</strong><br>
+          ${earthquake.affected_cities.join(', ')}
+        </div>
+      </div>
+    `;
+
+    historicEarthquakeMarker.bindPopup(popupContent, {
+      className: 'historic-earthquake-popup',
+      maxWidth: 400,
+      autoPan: true
+    });
+
+    historicEarthquakeMarker.addTo(map);
+
+    // Popup'ı otomatik aç
+    setTimeout(() => {
+      if (historicEarthquakeMarker) {
+        historicEarthquakeMarker.openPopup();
+      }
+    }, 500);
   }
 
-  function removeTectonicPlates() {
-    if (tectonicLayer && map) {
-      // Layer group'taki tüm katmanları temizle
-      tectonicLayer.eachLayer(function(layer) {
-        map.removeLayer(layer);
-      });
-      
-      // Info control'ü de kaldır
-      if (tectonicLayer._infoControl) {
-        map.removeControl(tectonicLayer._infoControl);
-      }
-      
-      map.removeLayer(tectonicLayer);
-      tectonicLayer = null;
+  function clearHistoricEarthquakeSelection() {
+    selectedHistoricEarthquake = null;
+    if (historicEarthquakeMarker) {
+      map.removeLayer(historicEarthquakeMarker);
+      historicEarthquakeMarker = null;
     }
   }
+
+  function getMagnitudeClass(magnitude) {
+    if (magnitude >= 9.0) return 'extreme';
+    if (magnitude >= 8.0) return 'major';  
+    if (magnitude >= 7.0) return 'strong';
+    return 'moderate';
+  }
+
+  function formatNumber(num) {
+    return new Intl.NumberFormat('tr-TR').format(num);
+  }
+  // Fay hatlarını kaldır
+  function removeFaultLines() {
+    if (faultsLayer) {
+      map.removeLayer(faultsLayer);
+      faultsLayer = null;
+      console.log('🚫 Fay hatları kaldırıldı');
+    }
+  }
+
+
 
   function getDisplayDate(eq) {
     if (eq.date && eq.date !== 'undefined') return eq.date;
@@ -416,6 +547,12 @@
     }).addTo(map);
 
     markersLayer = L.layerGroup().addTo(map);
+    
+    // Zoom dinleyicisi
+    map.on('zoomend', () => {
+      currentZoom = map.getZoom();
+    });
+    
     initialized = true;
 
     // İlk yüklemede marker'ları oluştur
@@ -459,22 +596,30 @@
 <div class="map-wrapper">
   <div bind:this={mapContainer} class="map"></div>
   
-  <!-- Tektonik Levhalar Toggle -->
+  <!-- Fay Hatları Kontrolü -->
   <div class="map-controls" class:light={!darkMode}>
+    <!-- Fay Hatları Toggle -->
     <button 
-      class="tectonic-toggle" 
-      class:active={showTectonicPlates}
-      on:click={toggleTectonicPlates}
-      title="Tektonik Levhaları Göster/Gizle"
+      class="tectonic-toggle fault-toggle" 
+      class:active={showFaultLines}
+      on:click={toggleFaultLines}
+      title="Fay Hatlarını Göster/Gizle"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-        <path d="M2 17l10 5 10-5"/>
-        <path d="M2 12l10 5 10-5"/>
+        <path d="M6 3l6 6 6-6"/>
+        <path d="M6 15l6 6 6-6"/>
       </svg>
-      USGS Tektonik
+      Fay Hatları {showFaultLines ? '🔴' : '⚪'}
     </button>
   </div>
+
+  <!-- Tarihi Depremler Widget'ı -->
+  <HistoricEarthquakesWidget 
+    {darkMode}
+    on:earthquakeSelected={handleHistoricEarthquakeSelected}
+    on:triggerEffect={handleEarthquakeEffect}
+    on:clearSelection={clearHistoricEarthquakeSelection}
+  />
   
   <div class="map-legend" class:light={!darkMode}>
     <div class="legend-title">Büyüklük</div>
@@ -652,6 +797,29 @@
     padding: 0;
     overflow: hidden;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    z-index: 9999 !important;
+  }
+
+  :global(.custom-popup) {
+    z-index: 9999 !important;
+  }
+
+  /* Leaflet popup pane z-index */
+  :global(.leaflet-popup-pane) {
+    z-index: 9998 !important;
+  }
+
+  :global(.leaflet-popup) {
+    z-index: 9999 !important;
+  }
+
+  /* Alt panel üzerinde popup görünsün */
+  :global(.leaflet-container) {
+    position: relative;
+  }
+
+  :global(.leaflet-control-container) {
+    z-index: 800;
   }
 
   :global(.custom-popup .leaflet-popup-tip) {
@@ -795,20 +963,38 @@
   /* Tektonik Levhalar Kontrolü */
   .map-controls {
     position: absolute;
-    top: 10px;
+    top: 80px;
     left: 10px;
     z-index: 1000;
     pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  /* Z-Index düzenlemeleri - popup'ların en üstte olması için */
+  :global(.leaflet-popup) {
+    z-index: 2000 !important;
+  }
+
+  :global(.leaflet-popup-pane) {
+    z-index: 2000 !important;
+  }
+
+  /* Alt panelin arkada kalmaması için */
+  :global(.leaflet-control-container) {
+    z-index: 1500 !important;
   }
 
   .tectonic-toggle {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
+    gap: 0.3rem;
+    padding: 0.3rem 0.5rem;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
     color: var(--text-secondary);
     font-size: 0.8rem;
     font-weight: 500;
@@ -838,10 +1024,32 @@
     color: white !important;
   }
 
+  .tectonic-toggle.fault-toggle.active {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: white !important;
+  }
+
+  .tectonic-toggle.fault-toggle.active:hover {
+    background: #b91c1c;
+    border-color: #b91c1c;
+    color: white !important;
+  }
+
   .tectonic-toggle svg {
     width: 16px;
     height: 16px;
     flex-shrink: 0;
+  }
+
+  .debug-panel {
+    margin-top: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 6px;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    font-family: monospace;
   }
 
   .map-controls.light .tectonic-toggle {
@@ -855,6 +1063,28 @@
   .map-controls.light .tectonic-toggle.active {
     background: var(--accent) !important;
     color: white !important;
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .map-controls {
+      top: 60px;
+      left: 8px;
+      right: 8px;
+      flex-direction: row;
+      justify-content: flex-start;
+    }
+    
+    .tectonic-toggle {
+      font-size: 0.7rem;
+      padding: 0.25rem 0.4rem;
+      gap: 0.2rem;
+    }
+    
+    .tectonic-toggle svg {
+      width: 16px;
+      height: 16px;
+    }
   }
 
   /* Tektonik Popup Stilleri */
@@ -896,6 +1126,317 @@
     .tectonic-toggle svg {
       width: 14px;
       height: 14px;
+    }
+  }
+
+  /* Tarihi Deprem Marker'ları */
+  :global(.historic-earthquake-marker) {
+    z-index: 2000 !important;
+  }
+
+  :global(.historic-marker) {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    cursor: pointer;
+    transform: scale(calc(var(--marker-size, 1.2)));
+    transition: all 0.3s ease;
+  }
+
+  :global(.historic-marker:hover) {
+    transform: scale(calc(var(--marker-size, 1.2) + 0.3));
+    z-index: 1000;
+  }
+
+  :global(.historic-marker-inner) {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    background: var(--marker-color, #dc2626);
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+  }
+
+  :global(.historic-magnitude) {
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    line-height: 1;
+  }
+
+  :global(.historic-year) {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 0 1px 1px rgba(0,0,0,0.5);
+    line-height: 1;
+  }
+
+  /* Çoklu pulse animasyonları */
+  :global(.historic-pulse-1), 
+  :global(.historic-pulse-2), 
+  :global(.historic-pulse-3) {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid var(--marker-color, #dc2626);
+    background: transparent;
+    opacity: 0;
+    z-index: 1;
+  }
+
+  :global(.normal-pulse .historic-pulse-1) { animation: historic-pulse-ring 3s infinite; }
+  :global(.normal-pulse .historic-pulse-2) { animation: historic-pulse-ring 3s infinite 1s; }
+  
+  :global(.strong-pulse .historic-pulse-1) { animation: historic-pulse-ring 2s infinite; }
+  :global(.strong-pulse .historic-pulse-2) { animation: historic-pulse-ring 2s infinite 0.7s; }
+  :global(.strong-pulse .historic-pulse-3) { animation: historic-pulse-ring 2s infinite 1.4s; }
+  
+  :global(.extreme-pulse .historic-pulse-1) { animation: historic-pulse-ring 1.5s infinite; }
+  :global(.extreme-pulse .historic-pulse-2) { animation: historic-pulse-ring 1.5s infinite 0.5s; }
+  :global(.extreme-pulse .historic-pulse-3) { animation: historic-pulse-ring 1.5s infinite 1s; }
+
+  @keyframes historic-pulse {
+    0% { 
+      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4), 0 0 0 0 rgba(220, 38, 38, 0.7);
+    }
+    70% {
+      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4), 0 0 0 15px rgba(220, 38, 38, 0);
+    }
+    100% {
+      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4), 0 0 0 0 rgba(220, 38, 38, 0);
+    }
+  }
+
+  @keyframes historic-pulse-ring {
+    0% {
+      transform: translate(-50%, -50%) scale(0.8);
+      opacity: 1;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2);
+      opacity: 0;
+    }
+  }
+
+  /* Tarihi Deprem Popup Stilleri */
+  :global(.historic-earthquake-popup .leaflet-popup-content-wrapper) {
+    background: var(--bg-card);
+    border: 2px solid #dc2626;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  }
+
+  :global(.historic-earthquake-popup .leaflet-popup-tip) {
+    background: var(--bg-card);
+    border: 2px solid #dc2626;
+  }
+
+  :global(.historic-popup) {
+    font-family: inherit;
+    max-width: 400px;
+  }
+
+  :global(.historic-popup-header) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  :global(.historic-popup-title) {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex: 1;
+  }
+
+  :global(.historic-popup-magnitude) {
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: white;
+    min-width: 45px;
+    text-align: center;
+  }
+
+  :global(.historic-popup-magnitude.magnitude-extreme) {
+    background: #dc2626;
+  }
+
+  :global(.historic-popup-magnitude.magnitude-major) {
+    background: #ea580c;
+  }
+
+  :global(.historic-popup-magnitude.magnitude-strong) {
+    background: #ca8a04;
+  }
+
+  :global(.historic-popup-magnitude.magnitude-moderate) {
+    background: #16a34a;
+  }
+
+  :global(.historic-popup-content) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  :global(.historic-detail-row) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    padding: 0.2rem 0;
+  }
+
+  :global(.historic-detail-row .detail-icon) {
+    font-size: 1rem;
+    min-width: 20px;
+  }
+
+  :global(.historic-description),
+  :global(.affected-cities) {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+  }
+
+  :global(.historic-description strong),
+  :global(.affected-cities strong) {
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  /* Mobile tarihi deprem stilleri */
+  @media (max-width: 768px) {
+    :global(.historic-marker) {
+      width: 50px;
+      height: 50px;
+    }
+
+    :global(.historic-marker-inner) {
+      width: 40px;
+      height: 40px;
+    }
+
+    :global(.historic-pulse) {
+      width: 50px;
+      height: 50px;
+    }
+
+    :global(.historic-magnitude) {
+      font-size: 12px;
+    }
+
+    :global(.historic-year) {
+      font-size: 8px;
+    }
+
+    :global(.historic-popup-content) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Tarihi deprem alarm overlay'leri */
+  :global(.earthquake-alarm-overlay) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 999999;
+    pointer-events: none;
+    animation: alarmFlash 0.3s ease-in-out 3;
+  }
+
+  :global(.earthquake-alarm-overlay.intensity-low) {
+    background: radial-gradient(circle, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 50%, transparent 100%);
+  }
+
+  :global(.earthquake-alarm-overlay.intensity-medium) {
+    background: radial-gradient(circle, rgba(234, 179, 8, 0.15) 0%, rgba(234, 179, 8, 0.08) 50%, transparent 100%);
+  }
+
+  :global(.earthquake-alarm-overlay.intensity-high) {
+    background: radial-gradient(circle, rgba(234, 88, 12, 0.2) 0%, rgba(234, 88, 12, 0.1) 50%, transparent 100%);
+  }
+
+  :global(.earthquake-alarm-overlay.intensity-extreme) {
+    background: radial-gradient(circle, rgba(220, 38, 38, 0.25) 0%, rgba(220, 38, 38, 0.15) 50%, transparent 100%);
+  }
+
+  /* Tarihi deprem border efektleri */
+  :global(.earthquake-border) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 999998;
+    pointer-events: none;
+    border-width: 8px;
+    border-style: solid;
+    animation: borderPulse 0.4s ease-in-out 4;
+  }
+
+  :global(.earthquake-border.intensity-low) {
+    border-color: rgba(34, 197, 94, 0.6);
+    box-shadow: inset 0 0 50px rgba(34, 197, 94, 0.3);
+  }
+
+  :global(.earthquake-border.intensity-medium) {
+    border-color: rgba(234, 179, 8, 0.7);
+    box-shadow: inset 0 0 50px rgba(234, 179, 8, 0.4);
+  }
+
+  :global(.earthquake-border.intensity-high) {
+    border-color: rgba(234, 88, 12, 0.8);
+    box-shadow: inset 0 0 50px rgba(234, 88, 12, 0.5);
+  }
+
+  :global(.earthquake-border.intensity-extreme) {
+    border-color: rgba(220, 38, 38, 0.9);
+    box-shadow: inset 0 0 50px rgba(220, 38, 38, 0.6);
+  }
+
+  @keyframes alarmFlash {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+  }
+
+  @keyframes borderPulse {
+    0%, 100% { 
+      border-width: 0px;
+      opacity: 0;
+    }
+    50% { 
+      border-width: 8px;
+      opacity: 1;
     }
   }
 </style>

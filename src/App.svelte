@@ -662,6 +662,19 @@
     animation: shakeExtreme 0.6s cubic-bezier(.36,.07,.19,.97) 5;
   }
 
+  /* Tarihi depremler için shake animasyonları */
+  :global(body.shake-light) {
+    animation: shakeLow 0.4s ease-out 2;
+  }
+
+  :global(body.shake-moderate) {
+    animation: shakeMedium 0.5s ease-out 3;
+  }
+
+  :global(body.shake-major) {
+    animation: shakeExtreme 0.7s ease-out 5;
+  }
+
   /* Düşük şiddet (< 3.0) */
   @keyframes shakeLow {
     0%, 100% { transform: translateX(0) translateY(0); }
