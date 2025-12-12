@@ -1,14 +1,22 @@
-const CACHE_NAME = 'deprem-takip-v4';
+const CACHE_NAME = 'deprem-takip-v5';
+const STATIC_CACHE = 'deprem-static-v5';
+const DYNAMIC_CACHE = 'deprem-dynamic-v5';
+
 const urlsToCache = [
-  '/'
+  '/',
+  '/manifest.webmanifest',
+  '/icon/favicon.ico',
+  '/icon/favicon-16x16.png',
+  '/icon/favicon-32x32.png',
+  '/icon/apple-icon-180x180.png'
 ];
 
 // Service Worker kurulumu
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches.open(STATIC_CACHE)
       .then((cache) => {
-        console.log('Cache açıldı');
+        console.log('Static cache açıldı');
         return cache.addAll(urlsToCache);
       })
       .catch((err) => {
@@ -24,7 +32,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          if (![STATIC_CACHE, DYNAMIC_CACHE].includes(cacheName)) {
             console.log('Eski cache siliniyor:', cacheName);
             return caches.delete(cacheName);
           }
