@@ -24,67 +24,24 @@
   const TURKEY_CENTER = [38.5, 35.5];
   const DEFAULT_ZOOM = 7;
 
-  // Türkiye civarı tektonik levhalar (basitleştirilmiş)
-  const tectonicPlatesData = {
-    "type": "FeatureCollection",
-    "features": [
-      {
-        "type": "Feature",
-        "properties": {
-          "name": "Anadolu Levhası",
-          "color": "#ff6b6b",
-          "description": "Türkiye'nin çoğunluğunu kaplayan ana levha"
-        },
-        "geometry": {
-          "type": "Polygon",
-          "coordinates": [[
-            [26.0, 35.5], [26.0, 42.5], [45.0, 42.5], [45.0, 35.5], [26.0, 35.5]
-          ]]
-        }
-      },
-      {
-        "type": "Feature",
-        "properties": {
-          "name": "Avrasya Levhası",
-          "color": "#4ecdc4",
-          "description": "Kuzey Anadolu Fay Zonu ile ayrılır"
-        },
-        "geometry": {
-          "type": "Polygon",
-          "coordinates": [[
-            [25.0, 42.5], [25.0, 45.0], [50.0, 45.0], [50.0, 42.5], [25.0, 42.5]
-          ]]
-        }
-      },
-      {
-        "type": "Feature",
-        "properties": {
-          "name": "Arap Levhası",
-          "color": "#45b7d1",
-          "description": "Doğu Anadolu Fay Zonu ile ayrılır"
-        },
-        "geometry": {
-          "type": "Polygon",
-          "coordinates": [[
-            [35.0, 32.0], [35.0, 38.0], [50.0, 38.0], [50.0, 32.0], [35.0, 32.0]
-          ]]
-        }
-      },
-      {
-        "type": "Feature", 
-        "properties": {
-          "name": "Afrika Levhası",
-          "color": "#96ceb4",
-          "description": "Güney Ege ve Akdeniz bölgesi"
-        },
-        "geometry": {
-          "type": "Polygon",
-          "coordinates": [[
-            [20.0, 32.0], [20.0, 36.5], [35.0, 36.5], [35.0, 32.0], [20.0, 32.0]
-          ]]
-        }
-      }
-    ]
+  // USGS ve ArcGIS gerçek tektonik levha servisleri
+  const tectonicServices = {
+    // USGS Tektonik Levhalar (Resmi USGS verisi)
+    plates: {
+      url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places_Alternate/MapServer/tile/{z}/{y}/{x}',
+      wms: 'https://earthquake.usgs.gov/arcgis/services/hazards/tectonic_plates/MapServer/WMSServer',
+      esri: 'https://services.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer'
+    },
+    // USGS Fay Hatları
+    faults: {
+      url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer',
+      quaternary: 'https://earthquake.usgs.gov/arcgis/services/hazards/quaternary_faults/MapServer/WMSServer'
+    },
+    // ArcGIS World Tectonic Plates
+    worldPlates: {
+      url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer',
+      tectonic: 'https://sampleserver1.arcgisonline.com/ArcGIS/rest/services/Specialty/ESRI_StatesCitiesRivers_USA/MapServer'
+    }
   };
 
   // Optimize tile providers for better performance and WebP support
@@ -245,51 +202,105 @@
   function addTectonicPlates() {
     if (!map || tectonicLayer) return;
 
-    tectonicLayer = L.geoJSON(tectonicPlatesData, {
-      style: function(feature) {
-        return {
-          color: feature.properties.color,
-          weight: 2,
-          opacity: 0.8,
-          fillColor: feature.properties.color,
-          fillOpacity: 0.1,
-          dashArray: '5, 10'
-        };
-      },
-      onEachFeature: function(feature, layer) {
-        const popupContent = `
-          <div class="tectonic-popup">
-            <h4 style="margin: 0 0 0.5rem 0; color: ${feature.properties.color};">
-              🌍 ${feature.properties.name}
-            </h4>
-            <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">
-              ${feature.properties.description}
-            </p>
-          </div>
-        `;
-        layer.bindPopup(popupContent);
-        
-        // Hover efekti
-        layer.on({
-          mouseover: function(e) {
-            e.target.setStyle({
-              weight: 3,
-              fillOpacity: 0.2
-            });
-          },
-          mouseout: function(e) {
-            e.target.setStyle({
-              weight: 2,
-              fillOpacity: 0.1
-            });
-          }
-        });
+    // Layer group oluştur - birden fazla katman için
+    tectonicLayer = L.layerGroup();
+
+    // 1. USGS Tektonik Levhalar WMS Katmanı
+    const usgsPlatesWMS = L.tileLayer.wms('https://earthquake.usgs.gov/arcgis/services/hazards/tectonic_plates/MapServer/WMSServer', {
+      layers: '0',
+      format: 'image/png',
+      transparent: true,
+      opacity: 0.6,
+      attribution: '© USGS Earthquake Hazards Program'
+    });
+
+    // 2. ArcGIS World Geological Map (Fay hatları için)
+    const esriGeologyLayer = L.esri.dynamicMapLayer({
+      url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer',
+      opacity: 0.5,
+      attribution: '© Esri, USGS'
+    });
+
+    // 3. USGS Quaternary Faults WMS
+    const ussgsFaultsWMS = L.tileLayer.wms('https://earthquake.usgs.gov/arcgis/services/hazards/quaternary_faults/MapServer/WMSServer', {
+      layers: '0,1,2',
+      format: 'image/png',
+      transparent: true,
+      opacity: 0.7,
+      attribution: '© USGS Quaternary Fault Database'
+    });
+
+    // Fallback: Eğer WMS çalışmazsa, basit ArcGIS tile layer
+    const fallbackTectonicTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Specialty/World_Geological_Map/MapServer/tile/{z}/{y}/{x}', {
+      opacity: 0.5,
+      attribution: '© Esri, USGS, NOAA'
+    });
+
+    try {
+      // WMS katmanlarını ekle
+      tectonicLayer.addLayer(usgsPlatesWMS);
+      tectonicLayer.addLayer(ussgsFaultsWMS);
+      
+      // Eğer ESRI Leaflet plugin varsa geological layer'ı da ekle
+      if (typeof L.esri !== 'undefined') {
+        tectonicLayer.addLayer(esriGeologyLayer);
+      } else {
+        // Fallback tile layer kullan
+        tectonicLayer.addLayer(fallbackTectonicTiles);
       }
-    }).addTo(map);
+    } catch (error) {
+      console.log('WMS katmanları yüklenemedi, fallback kullanılıyor:', error);
+      // Hata durumunda sadece fallback tile layer kullan
+      tectonicLayer.addLayer(fallbackTectonicTiles);
+    }
+
+    // Layer group'u haritaya ekle
+    tectonicLayer.addTo(map);
+
+    // Bilgi popup'ı ekle (tıklanabilir alan oluştur)
+    const infoControl = L.control({ position: 'bottomleft' });
+    infoControl.onAdd = function() {
+      const div = L.DomUtil.create('div', 'tectonic-info-control');
+      div.innerHTML = `
+        <div class="tectonic-info-popup" style="
+          background: var(--bg-card); 
+          padding: 0.75rem; 
+          border-radius: 8px; 
+          border: 1px solid var(--border-color);
+          backdrop-filter: blur(10px);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+          font-size: 0.8rem;
+          color: var(--text-primary);
+          max-width: 200px;
+        ">
+          <div style="font-weight: 600; margin-bottom: 0.25rem;">🌍 Tektonik Veriler</div>
+          <div style="color: var(--text-secondary); line-height: 1.4;">
+            • USGS resmi tektonik levhalar<br>
+            • Kuvaterner fay sistemleri<br>
+            • World Geological Map
+          </div>
+        </div>
+      `;
+      return div;
+    };
+    infoControl.addTo(map);
+    
+    // Info control'ü tectonicLayer'a bağla (temizlik için)
+    tectonicLayer._infoControl = infoControl;
   }
 
   function removeTectonicPlates() {
     if (tectonicLayer && map) {
+      // Layer group'taki tüm katmanları temizle
+      tectonicLayer.eachLayer(function(layer) {
+        map.removeLayer(layer);
+      });
+      
+      // Info control'ü de kaldır
+      if (tectonicLayer._infoControl) {
+        map.removeControl(tectonicLayer._infoControl);
+      }
+      
       map.removeLayer(tectonicLayer);
       tectonicLayer = null;
     }
@@ -450,10 +461,11 @@
       title="Tektonik Levhaları Göster/Gizle"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 12h18M3 6h18M3 18h18"/>
-        <circle cx="12" cy="12" r="1"/>
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
       </svg>
-      Tektonik Levhalar
+      USGS Tektonik
     </button>
   </div>
   
@@ -810,12 +822,13 @@
   .tectonic-toggle.active {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    color: white !important;
   }
 
   .tectonic-toggle.active:hover {
     background: var(--accent-hover);
     border-color: var(--accent-hover);
+    color: white !important;
   }
 
   .tectonic-toggle svg {
@@ -830,6 +843,11 @@
 
   .map-controls.light .tectonic-toggle:hover {
     background: rgba(255, 255, 255, 1);
+  }
+
+  .map-controls.light .tectonic-toggle.active {
+    background: var(--accent) !important;
+    color: white !important;
   }
 
   /* Tektonik Popup Stilleri */
