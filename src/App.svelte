@@ -389,8 +389,12 @@
       accuracy: reportData.accuracy,
       locationName: locationText,
       timestamp: reportData.timestamp,
-      time: timeText
+      time: timeText,
+      magnitude: 3.0 // Kullanıcı bildirimi için varsayılan büyüklük
     };
+
+    // Deprem bildirim animasyonu tetikle (3.0 büyüklüğünde)
+    triggerEarthquakeEffect(userReport, false);
 
     // 1. Butona basan kişiye bildirim gönder
     sendUserReportNotification(userReport, true);
