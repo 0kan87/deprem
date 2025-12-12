@@ -137,6 +137,23 @@
       socket.on('newEarthquake', (earthquake) => {
         console.log('🚨 Yeni deprem:', earthquake);
         
+        // Titreşim (mobil cihazlarda)
+        if (navigator.vibrate && earthquake.magnitude >= 2.5) {
+          // Deprem büyüklüğüne göre titreşim süresi
+          const magnitude = earthquake.magnitude;
+          let vibrationPattern = [200, 100, 200]; // Varsayılan
+          
+          if (magnitude >= 5.0) {
+            vibrationPattern = [300, 150, 300, 150, 300]; // Çok güçlü
+          } else if (magnitude >= 4.0) {
+            vibrationPattern = [250, 100, 250, 100, 250]; // Güçlü
+          } else if (magnitude >= 3.0) {
+            vibrationPattern = [200, 100, 200, 100, 200]; // Orta
+          }
+          
+          navigator.vibrate(vibrationPattern);
+        }
+        
         // Görsel efekt
         triggerNewEarthquakeEffect(earthquake);
         

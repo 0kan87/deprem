@@ -14,6 +14,8 @@
   let isReporting = false;
   let reportSuccess = false;
   let reportCooldown = false;
+  let shakeDetectionActive = false;
+  let lastShakeTime = 0;
   
   // Dinamik saat
   let currentTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -40,15 +42,21 @@
         
         result.addEventListener('change', () => {
           locationPermission = result.state;
-          // İzin verilirse konumu al
-          if (result.state === 'granted' && !userLocation) {
-            getCurrentLocation().catch(() => {});
+          // İzin verilirse konumu al ve sallama algılamasını başlat
+          if (result.state === 'granted') {
+            if (!userLocation) {
+              getCurrentLocation().catch(() => {});
+            }
+            enableShakeDetection();
+          } else {
+            stopShakeDetection();
           }
         });
 
-        // Eğer izin verilmişse konumu al
+        // Eğer izin verilmişse konumu al ve sallama algılamasını başlat
         if (result.state === 'granted') {
           getCurrentLocation().catch(() => {});
+          enableShakeDetection();
         }
       } catch (e) {
         // permissions API desteklenmiyorsa prompt olarak kabul et
@@ -61,7 +69,83 @@
     if (clockInterval) {
       clearInterval(clockInterval);
     }
+    // Telefon sallama algılamasını durdur
+    stopShakeDetection();
   });
+
+  // Telefon sallama algılama (sadece mobilde)
+  let handleDeviceMotion;
+
+  function startShakeDetection() {
+    if (!window.DeviceMotionEvent || !navigator.userAgent.match(/Mobile|Android|iPhone|iPad/i)) {
+      return; // Desktop'ta çalışma
+    }
+
+    if (shakeDetectionActive) return;
+    
+    handleDeviceMotion = (event) => {
+      if (locationPermission !== 'granted' || reportCooldown || isReporting) return;
+      
+      const acceleration = event.accelerationIncludingGravity;
+      if (!acceleration) return;
+      
+      const now = Date.now();
+      const timeDiff = now - lastShakeTime;
+      
+      // En az 1 saniye ara olmalı
+      if (timeDiff < 1000) return;
+      
+      const { x, y, z } = acceleration;
+      const totalAcceleration = Math.sqrt(x*x + y*y + z*z);
+      
+      // Sallama eşiği (15-20 arası hassasiyet)
+      const shakeThreshold = 18;
+      
+      if (totalAcceleration > shakeThreshold) {
+        lastShakeTime = now;
+        console.log('📱 Telefon sallandı, deprem bildirimi gönderiliyor...');
+        
+        // Haptic feedback (titreşim)
+        if (navigator.vibrate) {
+          navigator.vibrate(200);
+        }
+        
+        // Deprem bildirimi gönder
+        reportEarthquake();
+      }
+    };
+
+    window.addEventListener('devicemotion', handleDeviceMotion);
+    shakeDetectionActive = true;
+    console.log('📱 Telefon sallama algılama başlatıldı');
+  }
+
+  function stopShakeDetection() {
+    if (shakeDetectionActive && handleDeviceMotion) {
+      window.removeEventListener('devicemotion', handleDeviceMotion);
+      shakeDetectionActive = false;
+      console.log('📱 Telefon sallama algılama durduruldu');
+    }
+  }
+
+  // Konum izni verildiğinde sallama algılamasını başlat
+  function enableShakeDetection() {
+    if (locationPermission === 'granted' && window.DeviceMotionEvent) {
+      if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        // iOS 13+ için motion izni iste
+        DeviceMotionEvent.requestPermission()
+          .then(response => {
+            if (response === 'granted') {
+              startShakeDetection();
+            }
+          })
+          .catch(console.error);
+      } else {
+        // Android ve eski iOS için direkt başlat
+        startShakeDetection();
+      }
+    }
+  }
 
   // Mevcut konumu al
   function getCurrentLocation() {
@@ -357,7 +441,7 @@
   </button>
 
   <!-- Widget 3: Bugünkü Sayı + Saat -->
-  <div class="widget stat-widget">
+  <div class="widget stat-widget desktop-only">
     <div class="widget-header">
       <div class="widget-icon chart">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -380,7 +464,7 @@
   </div>
 
   <!-- Widget 4: Ortalama -->
-  <div class="widget stat-widget">
+  <div class="widget stat-widget desktop-only">
     <div class="widget-header">
       <div class="widget-icon avg">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -463,7 +547,7 @@
             <span class="report-main-text">Deprem Hissettim</span>
             <span class="report-sub-text">
               {#if locationPermission === 'granted'}
-                Tıklayarak herkese bildirin
+                Tıklayarak veya telefonunu sallayarak herkese bildirin
               {:else}
                 Konum izni vererek bildirin
               {/if}
@@ -852,35 +936,13 @@
       gap: 0.625rem;
     }
 
-    /* Widget 3 ve 4'ü (Bugün ve Ortalama) yan yana koy */
-    .widget:nth-child(3),
-    .widget:nth-child(4) {
-      grid-column: span 1;
+    /* Desktop-only widget'ları mobilde gizle */
+    .desktop-only {
+      display: none;
     }
 
-    .widget:nth-child(3) {
-      grid-row: 3;
-      grid-column: 1;
-    }
-
-    .widget:nth-child(4) {
-      grid-row: 3;
-      grid-column: 2;
-    }
-
-    /* Grid'i yeniden düzenle */
-    .widgets-row {
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: auto auto auto auto;
-    }
-
-    /* Widget 1 ve 2 full width */
+    /* Mobilde sadece widget 1 ve 5 görünür olacak */
     .widget:nth-child(1),
-    .widget:nth-child(2) {
-      grid-column: 1 / -1;
-    }
-
-    /* Widget 5 full width */
     .widget:nth-child(5) {
       grid-column: 1 / -1;
     }

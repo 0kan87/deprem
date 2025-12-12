@@ -656,6 +656,27 @@
     border-radius: 12px;
   }
 
+  /* Mobil görünümde harita daha uzun */
+  @media (max-width: 768px) {
+    .map-wrapper {
+      min-height: 600px;
+    }
+    
+    .map {
+      min-height: 600px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .map-wrapper {
+      min-height: 650px;
+    }
+    
+    .map {
+      min-height: 650px;
+    }
+  }
+
   .map-legend {
     position: absolute;
     bottom: 20px;
