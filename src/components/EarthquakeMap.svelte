@@ -21,6 +21,7 @@
   let userReportMarker = null;
   let userReportTimeout = null;
   let currentZoom = DEFAULT_ZOOM;
+  let isMobile = false;
 
   const TURKEY_CENTER = [38.5, 35.5];
   const DEFAULT_ZOOM = 7;
@@ -399,20 +400,23 @@
       </div>
     `;
 
-    historicEarthquakeMarker.bindPopup(popupContent, {
-      className: 'historic-earthquake-popup',
-      maxWidth: 400,
-      autoPan: true
-    });
+    // Popup ekle (sadece desktop'ta)
+    if (!isMobile) {
+      historicEarthquakeMarker.bindPopup(popupContent, {
+        className: 'historic-earthquake-popup',
+        maxWidth: 400,
+        autoPan: true
+      });
+
+      // Popup'ı otomatik aç
+      setTimeout(() => {
+        if (historicEarthquakeMarker) {
+          historicEarthquakeMarker.openPopup();
+        }
+      }, 500);
+    }
 
     historicEarthquakeMarker.addTo(map);
-
-    // Popup'ı otomatik aç
-    setTimeout(() => {
-      if (historicEarthquakeMarker) {
-        historicEarthquakeMarker.openPopup();
-      }
-    }, 500);
   }
 
   function clearHistoricEarthquakeSelection() {
@@ -514,7 +518,14 @@
     });
   }
 
+  function checkMobile() {
+    isMobile = window.innerWidth <= 768;
+  }
+
   onMount(() => {
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
     map = L.map(mapContainer, {
       center: TURKEY_CENTER,
       zoom: DEFAULT_ZOOM,

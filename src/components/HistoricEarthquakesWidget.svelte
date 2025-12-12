@@ -60,6 +60,11 @@
     
     // Animasyon için event gönder
     dispatch('triggerEffect', earthquake);
+    
+    // Mobilde deprem seçildiğinde listeyi kapat
+    if (isMobile) {
+      isOpen = false;
+    }
   }
   
   function getMagnitudeColor(magnitude) {
@@ -105,16 +110,35 @@
 <div class="historic-earthquakes-widget" class:dark={darkMode} class:open={isOpen} class:mobile={isMobile} on:click={handleOverlayClick}>
   <!-- Widget Toggle Button -->
   <button class="widget-toggle" on:click={toggleWidget} title="Tarihi Büyük Depremler">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-      <circle cx="12" cy="12" r="1"/>
-    </svg>
-    <span class="widget-text" class:hidden={isMobile}>Tarihi Depremler</span>
-    <div class="toggle-indicator" class:rotated={isOpen}>
+    {#if isMobile}
+      <div class="fab-content" class:rotated={isOpen}>
+        {#if isOpen}
+          <!-- Aşağı ok (kapat) -->
+          <svg class="fab-icon close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+          </svg>
+        {:else}
+          <!-- Yukarı ok (aç) -->
+          <svg class="fab-icon main-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M5 10l7-7m0 0l7 7m-7-7v18"/>
+          </svg>
+        {/if}
+      </div>
+    {:else}
+      <!-- Desktop görünüm -->
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="m6 9 6 6 6-6"/>
+        <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+        <line x1="16" x2="16" y1="2" y2="6"/>
+        <line x1="8" x2="8" y1="2" y2="6"/>
+        <line x1="3" x2="21" y1="10" y2="10"/>
       </svg>
-    </div>
+      <span class="widget-text">Tarihi Depremler</span>
+      <div class="toggle-indicator" class:rotated={isOpen}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+      </div>
+    {/if}
   </button>
 
   <!-- Widget Panel -->
@@ -125,11 +149,13 @@
       on:touchstart={handleTouchStart}
       on:touchmove={handleTouchMove}
     >
-      <!-- Mobile Handle Bar -->
+      <!-- Mobile Close Button -->
       {#if isMobile}
-        <div class="mobile-handle">
-          <div class="handle-bar"></div>
-        </div>
+        <button class="mobile-close-btn" on:click={toggleWidget}>
+          <svg class="fab-icon close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
       {/if}
       <!-- Filter Buttons -->
       <div class="filter-section">
@@ -189,9 +215,11 @@
             >
               <div class="earthquake-header">
                 <div class="earthquake-name">{earthquake.name}</div>
-                <div class="earthquake-magnitude" style="background-color: {getMagnitudeColor(earthquake.magnitude)};">
-                  {earthquake.magnitude}
-                </div>
+                {#if !isMobile}
+                  <div class="earthquake-magnitude" style="background-color: {getMagnitudeColor(earthquake.magnitude)};">
+                    {earthquake.magnitude}
+                  </div>
+                {/if}
               </div>
               
               <div class="earthquake-details">
@@ -303,13 +331,13 @@
     overflow: hidden;
     backdrop-filter: blur(15px);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-    max-height: 70vh;
+    max-height: 65vh;
     display: flex;
     flex-direction: column;
   }
 
   .filter-section {
-    padding: 1rem;
+    padding: 0.75rem;
     border-bottom: 1px solid var(--border-color);
     background: var(--bg-secondary);
   }
@@ -393,7 +421,7 @@
   }
 
   .earthquake-item {
-    padding: 1rem;
+    padding: 0.6rem;
     border-bottom: 1px solid var(--border-color);
     cursor: pointer;
     transition: all 0.2s ease;
@@ -489,14 +517,55 @@
     display: none;
   }
 
-  /* Mobil handle bar */
-  .mobile-handle {
-    padding: 0.5rem;
+  /* Mobil close button */
+  .mobile-close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     display: flex;
+    align-items: center;
     justify-content: center;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
-    cursor: grab;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+  }
+
+  .mobile-close-btn:hover {
+    background: var(--bg-hover);
+    transform: scale(1.05);
+  }
+
+  .mobile-close-btn:active {
+    transform: scale(0.95);
+  }
+
+  .mobile-close-btn .fab-icon {
+    width: 24px;
+    height: 24px;
+    color: var(--text-primary);
+  }
+
+  /* Mobil handle bar - gizli */
+  .historic-earthquakes-widget.mobile .mobile-handle {
+    display: none;
+  }
+
+  /* Mobilde filter section */
+  .historic-earthquakes-widget.mobile .filter-section {
+    flex-shrink: 0;
+    padding: 60px 1rem 0.75rem 1rem;
+    margin: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    background: var(--bg-primary);
+    border-bottom: 2px solid var(--border-color);
+    box-sizing: border-box;
   }
 
   .handle-bar {
@@ -511,11 +580,20 @@
   .historic-earthquakes-widget.mobile {
     position: fixed;
     top: auto;
-    bottom: 20px;
-    right: 20px;
+    bottom: 16px;
+    right: 50%;
     left: auto;
+    transform: translateX(50%);
     width: auto;
     z-index: 1000;
+  }
+
+  /* Mobil açık durumda tam ekran override */
+  .historic-earthquakes-widget.mobile.open {
+    transform: none !important;
+    right: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
   }
 
   .historic-earthquakes-widget.mobile .widget-toggle {
@@ -523,50 +601,142 @@
     height: 56px;
     border-radius: 50%;
     justify-content: center;
+    align-items: center;
     padding: 0;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    box-shadow: 
+      0 4px 16px rgba(0, 0, 0, 0.1),
+      0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+  }
+
+  .historic-earthquakes-widget.mobile .widget-toggle:hover {
+    transform: scale(1.05);
+    background: var(--bg-hover);
+    border-color: var(--accent);
+    box-shadow: 
+      0 6px 24px rgba(0, 0, 0, 0.15),
+      0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .historic-earthquakes-widget.mobile .widget-toggle:active {
+    transform: scale(0.95);
+    background: var(--bg-secondary);
+    box-shadow: 
+      0 2px 8px rgba(0, 0, 0, 0.1),
+      0 1px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  /* FAB içerik animasyonları */
+  .fab-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .fab-content.rotated {
+    transform: rotate(180deg);
+  }
+
+  .fab-icon {
+    width: 28px;
+    height: 28px;
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+  }
+
+  .fab-icon.main-icon {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+  }
+
+  .fab-icon.close-icon {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+  }
+
+  /* Ripple efekti */
+  .historic-earthquakes-widget.mobile .widget-toggle::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: var(--accent-hover);
+    opacity: 0.2;
+    transform: translate(-50%, -50%);
+    transition: width 0.3s, height 0.3s;
+  }
+
+  .historic-earthquakes-widget.mobile .widget-toggle:active::before {
+    width: 120%;
+    height: 120%;
   }
 
   .historic-earthquakes-widget.mobile.open {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: rgba(0, 0, 0, 0.5);
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    background: var(--bg-primary);
     z-index: 10000;
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .historic-earthquakes-widget.mobile.open {
+    transform: none;
+    right: 0;
+    bottom: 0;
   }
 
   .historic-earthquakes-widget.mobile.open .widget-toggle {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    z-index: 10001;
+    display: none;
+  }
+
+  .historic-earthquakes-widget.mobile.open .fab-icon {
+    color: var(--accent);
   }
 
   .historic-earthquakes-widget.mobile .widget-panel {
-    position: relative;
-    bottom: 0;
-    margin: 0;
-    border-radius: 20px 20px 0 0;
-    max-height: 85vh;
-    width: 100%;
+    flex: 1;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
     transform: translateY(0);
-    animation: slideUp 0.3s ease-out;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
+    animation: slideIn 0.3s ease-out;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+    overflow: hidden;
+    position: relative;
   }
 
-  @keyframes slideUp {
+  @keyframes slideIn {
     from {
-      transform: translateY(100%);
+      opacity: 0;
+      transform: scale(0.95);
     }
     to {
-      transform: translateY(0);
+      opacity: 1;
+      transform: scale(1);
     }
   }
 
@@ -575,7 +745,7 @@
     .historic-earthquakes-widget {
       top: 20px;
       right: 20px;
-      width: 350px;
+      width: 300px;
     }
   }
 
@@ -597,8 +767,13 @@
     }
 
     .earthquake-header {
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr;
       gap: 0.5rem;
+    }
+
+    .earthquake-name {
+      font-weight: 600;
+      font-size: 0.9rem;
     }
 
     .earthquake-details {
@@ -616,6 +791,73 @@
       align-items: center;
       gap: 0.5rem;
       margin-top: 0.3rem;
+    }
+
+    /* Tam ekran için liste alanını optimize et */
+    .historic-earthquakes-widget.mobile .earthquakes-list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      height: 100%;
+      min-height: 0;
+      background: var(--bg-primary);
+    }
+
+    .historic-earthquakes-widget.mobile .list-header {
+      flex-shrink: 0;
+      padding: 0.5rem 1rem;
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .historic-earthquakes-widget.mobile .list-scroll {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100vw !important;
+      max-width: 100vw !important;
+      height: 100%;
+      -webkit-overflow-scrolling: touch;
+      background: var(--bg-primary);
+      box-sizing: border-box;
+    }
+
+    /* Earthquake item mobilde */
+    .historic-earthquakes-widget.mobile .earthquake-item {
+      background: var(--bg-card);
+      margin: 0.25rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      min-height: 60px;
+      width: calc(100vw - 2rem);
+      max-width: calc(100vw - 2rem);
+      box-sizing: border-box;
+    }
+
+    .historic-earthquakes-widget.mobile .earthquake-item:first-child {
+      margin-top: 0.5rem;
+    }
+
+    .historic-earthquakes-widget.mobile .earthquake-item:last-child {
+      margin-bottom: 2rem;
+    }
+
+    /* Mobilde container tam yükseklik */
+    .historic-earthquakes-widget.mobile.open .widget-panel {
+      min-height: 100vh !important;
+      max-height: 100vh !important;
+    }
+
+    .historic-earthquakes-widget.mobile.open .earthquakes-list {
+      min-height: calc(100vh - 140px) !important;
+    }
+
+    .historic-earthquakes-widget.mobile.open .list-scroll {
+      min-height: calc(100vh - 200px) !important;
+      max-height: calc(100vh - 200px) !important;
     }
 
     .compact-info {

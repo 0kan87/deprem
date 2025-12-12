@@ -108,12 +108,12 @@
   .header-content {
     max-width: 1600px;
     margin: 0 auto;
-    padding: 0.75rem 1rem;
+    padding: 0.4rem 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
   .logo {
@@ -218,7 +218,7 @@
   @media (max-width: 600px) {
     .header-content {
       justify-content: center;
-      padding: 0.625rem 0.75rem;
+      padding: 0.3rem 0.75rem;
     }
 
     .logo-text h1 {

@@ -956,7 +956,7 @@
   }
 
   .content {
-    padding: 0.75rem;
+    padding: 0.5rem;
     max-width: 1800px;
     margin: 0 auto;
   }
@@ -964,8 +964,8 @@
   .main-grid {
     display: grid;
     grid-template-columns: 1fr 360px;
-    gap: 0.75rem;
-    margin-top: 0.75rem;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
   }
 
   .map-container {
@@ -1020,7 +1020,7 @@
 
   @media (max-width: 768px) {
     .content {
-      padding: 0.5rem;
+      padding: 0.35rem;
     }
 
     .map-container {

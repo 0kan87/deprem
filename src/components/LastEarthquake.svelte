@@ -498,8 +498,8 @@
 
   .widget {
     background: var(--bg-card);
-    border-radius: 12px;
-    padding: 0.875rem;
+    border-radius: 8px;
+    padding: 0.4rem;
     border: 1px solid var(--border-color);
     transition: all 0.2s ease;
     text-align: left;
@@ -582,7 +582,7 @@
   }
 
   .report-content {
-    min-height: 52px;
+    min-height: 30px;
   }
 
   .report-button-content {
@@ -593,10 +593,10 @@
   }
 
   .report-icon-large {
-    width: 44px;
-    height: 44px;
+    width: 28px;
+    height: 28px;
     background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
-    border-radius: 10px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -702,7 +702,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.4rem;
   }
 
   .widget-icon {
@@ -886,7 +886,7 @@
     }
 
     .widget {
-      padding: 0.75rem;
+      padding: 0.35rem;
     }
 
     .widget-content {
@@ -923,11 +923,11 @@
     }
 
     .widget {
-      padding: 0.625rem;
+      padding: 0.3rem;
     }
 
     .widget-header {
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.3rem;
       gap: 0.4rem;
     }
 
