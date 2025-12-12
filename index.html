@@ -35,6 +35,15 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>Deprem Takip - Kandilli Rasathanesi</title>
     
+    <!-- Critical CSS (inline) -->
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      :root{--bg-primary:#0f172a;--bg-secondary:#1e293b;--bg-card:#334155;--bg-hover:#475569;--text-primary:#f8fafc;--text-secondary:#94a3b8;--border-color:#475569;--accent:#3b82f6}
+      body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg-primary);color:var(--text-primary);line-height:1.6;min-height:100vh}
+      #app{min-height:100vh;display:flex;flex-direction:column}
+      .loading{display:flex;align-items:center;justify-content:center;min-height:50vh;font-size:1.2rem;color:var(--text-secondary)}
+    </style>
+    
     <!-- Load Leaflet CSS asynchronously with fallback -->
     <link rel="preload" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" as="style" onload="this.onload=null;this.rel='stylesheet'" crossorigin>
     <noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"></noscript>

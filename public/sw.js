@@ -43,6 +43,24 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Cache strategies
+const isStaticAsset = (url) => {
+  return url.includes('/icon/') || 
+         url.includes('/manifest') || 
+         url.includes('.css') || 
+         url.includes('.js') ||
+         url.includes('.png') ||
+         url.includes('.ico');
+};
+
+const isAPIRequest = (url) => {
+  return url.includes('api.orhanaydogdu.com.tr');
+};
+
+const isCDNRequest = (url) => {
+  return url.includes('unpkg.com') || url.includes('leaflet');
+};
+
 // Fetch istekleri
 self.addEventListener('fetch', (event) => {
   // Sadece http ve https isteklerini işle
@@ -57,50 +75,96 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API isteklerini cache'leme - network first
-  if (event.request.url.includes('api.orhanaydogdu.com.tr')) {
+  const url = event.request.url;
+
+  // API istekleri - Network First (fresh data öncelikli)
+  if (isAPIRequest(url)) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
+          // API yanıtını kısa süre cache'le (5 dakika)
+          if (response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(DYNAMIC_CACHE).then((cache) => {
+              const headers = new Headers(responseToCache.headers);
+              headers.set('sw-cachetime', Date.now().toString());
+              const cachedResponse = new Response(responseToCache.body, {
+                status: responseToCache.status,
+                statusText: responseToCache.statusText,
+                headers: headers
+              });
+              cache.put(event.request, cachedResponse);
+            });
+          }
           return response;
         })
         .catch(() => {
+          // Offline iken cache'den dön
           return caches.match(event.request);
         })
     );
     return;
   }
 
-  // Diğer istekler - cache first, network fallback
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
+  // Static assets - Cache First (hızlı yükleme)
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      caches.match(event.request).then((response) => {
         if (response) {
           return response;
         }
-        return fetch(event.request)
-          .then((response) => {
-            // Sadece başarılı yanıtları cache'le
-            if (!response || response.status !== 200) {
-              return response;
-            }
-            
-            // Sadece same-origin isteklerini cache'le
-            if (response.type === 'basic') {
-              const responseToCache = response.clone();
-              caches.open(CACHE_NAME)
-                .then((cache) => {
-                  cache.put(event.request, responseToCache);
-                })
-                .catch(() => {});
-            }
-            
-            return response;
-          })
-          .catch(() => {
-            return caches.match('/');
-          });
+        return fetch(event.request).then((response) => {
+          if (response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        });
       })
+    );
+    return;
+  }
+
+  // CDN assets - Cache First (uzun süreli cache)
+  if (isCDNRequest(url)) {
+    event.respondWith(
+      caches.match(event.request).then((response) => {
+        if (response) {
+          return response;
+        }
+        return fetch(event.request).then((response) => {
+          if (response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Diğer istekler - Stale While Revalidate
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      const fetchPromise = fetch(event.request).then((response) => {
+        if (response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(DYNAMIC_CACHE).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return response;
+      });
+
+      return response || fetchPromise;
+    }).catch(() => {
+      return caches.match('/');
+    })
   );
 });
 
