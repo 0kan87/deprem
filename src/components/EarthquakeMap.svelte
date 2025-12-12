@@ -13,14 +13,79 @@
   let map;
   let markersLayer;
   let tileLayer;
+  let tectonicLayer;
   let markers = new Map();
   let initialized = false;
   let currentLastId = null;
   let userReportMarker = null;
   let userReportTimeout = null;
+  let showTectonicPlates = false;
 
   const TURKEY_CENTER = [38.5, 35.5];
   const DEFAULT_ZOOM = 7;
+
+  // Türkiye civarı tektonik levhalar (basitleştirilmiş)
+  const tectonicPlatesData = {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "Anadolu Levhası",
+          "color": "#ff6b6b",
+          "description": "Türkiye'nin çoğunluğunu kaplayan ana levha"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[
+            [26.0, 35.5], [26.0, 42.5], [45.0, 42.5], [45.0, 35.5], [26.0, 35.5]
+          ]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "Avrasya Levhası",
+          "color": "#4ecdc4",
+          "description": "Kuzey Anadolu Fay Zonu ile ayrılır"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[
+            [25.0, 42.5], [25.0, 45.0], [50.0, 45.0], [50.0, 42.5], [25.0, 42.5]
+          ]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "Arap Levhası",
+          "color": "#45b7d1",
+          "description": "Doğu Anadolu Fay Zonu ile ayrılır"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[
+            [35.0, 32.0], [35.0, 38.0], [50.0, 38.0], [50.0, 32.0], [35.0, 32.0]
+          ]]
+        }
+      },
+      {
+        "type": "Feature", 
+        "properties": {
+          "name": "Afrika Levhası",
+          "color": "#96ceb4",
+          "description": "Güney Ege ve Akdeniz bölgesi"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[
+            [20.0, 32.0], [20.0, 36.5], [35.0, 36.5], [35.0, 32.0], [20.0, 32.0]
+          ]]
+        }
+      }
+    ]
+  };
 
   // Optimize tile providers for better performance and WebP support
   const lightTile = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
@@ -164,6 +229,70 @@
       // Improve loading performance
       detectRetina: window.devicePixelRatio > 1
     }).addTo(map);
+  }
+
+  // Tektonik levhaları göster/gizle
+  function toggleTectonicPlates() {
+    showTectonicPlates = !showTectonicPlates;
+    
+    if (showTectonicPlates) {
+      addTectonicPlates();
+    } else {
+      removeTectonicPlates();
+    }
+  }
+
+  function addTectonicPlates() {
+    if (!map || tectonicLayer) return;
+
+    tectonicLayer = L.geoJSON(tectonicPlatesData, {
+      style: function(feature) {
+        return {
+          color: feature.properties.color,
+          weight: 2,
+          opacity: 0.8,
+          fillColor: feature.properties.color,
+          fillOpacity: 0.1,
+          dashArray: '5, 10'
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        const popupContent = `
+          <div class="tectonic-popup">
+            <h4 style="margin: 0 0 0.5rem 0; color: ${feature.properties.color};">
+              🌍 ${feature.properties.name}
+            </h4>
+            <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">
+              ${feature.properties.description}
+            </p>
+          </div>
+        `;
+        layer.bindPopup(popupContent);
+        
+        // Hover efekti
+        layer.on({
+          mouseover: function(e) {
+            e.target.setStyle({
+              weight: 3,
+              fillOpacity: 0.2
+            });
+          },
+          mouseout: function(e) {
+            e.target.setStyle({
+              weight: 2,
+              fillOpacity: 0.1
+            });
+          }
+        });
+      }
+    }).addTo(map);
+  }
+
+  function removeTectonicPlates() {
+    if (tectonicLayer && map) {
+      map.removeLayer(tectonicLayer);
+      tectonicLayer = null;
+    }
   }
 
   function getDisplayDate(eq) {
@@ -311,6 +440,22 @@
 
 <div class="map-wrapper">
   <div bind:this={mapContainer} class="map"></div>
+  
+  <!-- Tektonik Levhalar Toggle -->
+  <div class="map-controls" class:light={!darkMode}>
+    <button 
+      class="tectonic-toggle" 
+      class:active={showTectonicPlates}
+      on:click={toggleTectonicPlates}
+      title="Tektonik Levhaları Göster/Gizle"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 12h18M3 6h18M3 18h18"/>
+        <circle cx="12" cy="12" r="1"/>
+      </svg>
+      Tektonik Levhalar
+    </button>
+  </div>
   
   <div class="map-legend" class:light={!darkMode}>
     <div class="legend-title">Büyüklük</div>
@@ -628,6 +773,79 @@
     border: 2px solid #dc2626;
   }
 
+  /* Tektonik Levhalar Kontrolü */
+  .map-controls {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 1000;
+    pointer-events: auto;
+  }
+
+  .tectonic-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .tectonic-toggle:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .tectonic-toggle.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  .tectonic-toggle.active:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+
+  .tectonic-toggle svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .map-controls.light .tectonic-toggle {
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  .map-controls.light .tectonic-toggle:hover {
+    background: rgba(255, 255, 255, 1);
+  }
+
+  /* Tektonik Popup Stilleri */
+  :global(.tectonic-popup) {
+    font-family: inherit;
+  }
+
+  :global(.tectonic-popup h4) {
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  :global(.tectonic-popup p) {
+    line-height: 1.4;
+  }
+
   @media (max-width: 768px) {
     .map-wrapper, .map {
       min-height: 320px;
@@ -637,6 +855,22 @@
       bottom: 8px;
       left: 8px;
       padding: 0.5rem;
+    }
+
+    .map-controls {
+      top: 8px;
+      left: 8px;
+    }
+
+    .tectonic-toggle {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.75rem;
+      gap: 0.4rem;
+    }
+
+    .tectonic-toggle svg {
+      width: 14px;
+      height: 14px;
     }
   }
 </style>
