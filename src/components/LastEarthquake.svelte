@@ -240,10 +240,10 @@
   function getTodaysBiggest(list) {
     if (!list || list.length === 0) return null;
     
-    const today = new Date().toLocaleDateString('tr-TR');
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD formatında
     const todaysEarthquakes = list.filter(eq => {
-      const eqDate = eq.date || (eq.dateTime ? new Date(eq.dateTime).toLocaleDateString('tr-TR') : '');
-      return eqDate === today;
+      const eqDateStr = eq.dateTime ? eq.dateTime.split(' ')[0] : ''; // YYYY-MM-DD kısmını al
+      return eqDateStr === today;
     });
 
     if (todaysEarthquakes.length === 0) return null;
@@ -289,9 +289,10 @@
 
   // Bugün kaç deprem oldu
   $: todaysCount = earthquakes.filter(eq => {
-    const today = new Date().toLocaleDateString('tr-TR');
-    const eqDate = eq.date || (eq.dateTime ? new Date(eq.dateTime).toLocaleDateString('tr-TR') : '');
-    return eqDate === today;
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD formatında
+    const eqDateStr = eq.dateTime ? eq.dateTime.split(' ')[0] : ''; // YYYY-MM-DD kısmını al
+    
+    return eqDateStr === today;
   }).length;
 
   // Son 24 saatteki ortalama büyüklük
