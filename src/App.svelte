@@ -19,6 +19,8 @@
   let isNewEarthquake = false;
   let mapComponent;
   let focusEarthquake = null;
+  let mapVisible = false;
+  let mapContainer;
 
   // API URL'leri
   const API_URL = 'https://api.orhanaydogdu.com.tr/deprem/kandilli/live';
@@ -347,6 +349,34 @@
       notificationPermission = Notification.permission;
     }
 
+    // Map lazy loading with Intersection Observer
+    if ('IntersectionObserver' in window) {
+      const mapObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !mapVisible) {
+            mapVisible = true;
+            mapObserver.disconnect();
+          }
+        });
+      }, {
+        rootMargin: '100px' // Load when 100px before visible
+      });
+
+      // Wait for DOM to be ready
+      setTimeout(() => {
+        const mapElement = document.querySelector('.map-container');
+        if (mapElement) {
+          mapObserver.observe(mapElement);
+        } else {
+          // Fallback: show map immediately if element not found
+          mapVisible = true;
+        }
+      }, 100);
+    } else {
+      // Fallback: show map immediately if IntersectionObserver not supported
+      mapVisible = true;
+    }
+
     // PWA Service Worker kaydı
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(err => {
@@ -541,16 +571,23 @@
       
       <!-- Ana İçerik: Harita ve Liste -->
       <div class="main-grid">
-        <div class="map-container">
-          <EarthquakeMap 
-            bind:this={mapComponent}
-            {earthquakes} 
-            selectedEarthquake={focusEarthquake}
-            {getMagnitudeColor}
-            {darkMode}
-            {lastEarthquake}
-            {isNewEarthquake}
-          />
+        <div class="map-container" bind:this={mapContainer}>
+          {#if mapVisible}
+            <EarthquakeMap 
+              bind:this={mapComponent}
+              {earthquakes} 
+              selectedEarthquake={focusEarthquake}
+              {getMagnitudeColor}
+              {darkMode}
+              {lastEarthquake}
+              {isNewEarthquake}
+            />
+          {:else}
+            <div class="map-loading-placeholder">
+              <div class="loading-spinner"></div>
+              <span>Harita yükleniyor...</span>
+            </div>
+          {/if}
         </div>
         
         <div class="list-container">
@@ -924,6 +961,30 @@
     overflow: hidden;
     min-height: 480px;
     border: 1px solid var(--border-color);
+    position: relative;
+  }
+
+  .map-loading-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 480px;
+    color: var(--text-secondary);
+    gap: 1rem;
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .list-container {

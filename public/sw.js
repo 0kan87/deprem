@@ -127,6 +127,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Map tiles - Cache First (optimize tile loading)
+  if (url.includes('basemaps.cartocdn.com') || url.includes('tile.openstreetmap.org')) {
+    event.respondWith(
+      caches.match(event.request).then((response) => {
+        if (response) {
+          return response;
+        }
+        return fetch(event.request).then((response) => {
+          if (response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open('map-tiles-v1').then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        }).catch(() => {
+          // Fallback for offline mode
+          return new Response('', { status: 204 });
+        });
+      })
+    );
+    return;
+  }
+
   // CDN assets - Cache First (uzun süreli cache)
   if (isCDNRequest(url)) {
     event.respondWith(

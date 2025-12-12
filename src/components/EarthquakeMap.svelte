@@ -22,8 +22,15 @@
   const TURKEY_CENTER = [38.5, 35.5];
   const DEFAULT_ZOOM = 7;
 
-  const lightTile = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  // Optimize tile providers for better performance and WebP support
+  const lightTile = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
   const darkTile = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  
+  // Alternative fast tile providers (backup)
+  const fastTileProviders = {
+    light: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+    satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+  };
 
   // Seçili deprem değiştiğinde haritayı güncelle
   $: if (map && selectedEarthquake && selectedEarthquake.latitude) {
@@ -141,8 +148,21 @@
     }
     
     tileLayer = L.tileLayer(darkMode ? darkTile : lightTile, {
-      attribution: '© OpenStreetMap',
-      maxZoom: 18
+      attribution: '© CARTO, © OpenStreetMap',
+      maxZoom: 18,
+      minZoom: 5,
+      // Performance optimizations
+      updateWhenIdle: true,
+      updateWhenZooming: false,
+      keepBuffer: 2,
+      // Reduce tile requests
+      subdomains: ['a', 'b', 'c', 'd'],
+      // Browser caching
+      crossOrigin: true,
+      // Reduce memory usage
+      reuseTiles: true,
+      // Improve loading performance
+      detectRetina: window.devicePixelRatio > 1
     }).addTo(map);
   }
 
@@ -231,8 +251,21 @@
     }).addTo(map);
 
     tileLayer = L.tileLayer(darkMode ? darkTile : lightTile, {
-      attribution: '© OpenStreetMap',
-      maxZoom: 18
+      attribution: '© CARTO, © OpenStreetMap',
+      maxZoom: 18,
+      minZoom: 5,
+      // Performance optimizations
+      updateWhenIdle: true,
+      updateWhenZooming: false,
+      keepBuffer: 2,
+      // Reduce tile requests
+      subdomains: ['a', 'b', 'c', 'd'],
+      // Browser caching
+      crossOrigin: true,
+      // Reduce memory usage
+      reuseTiles: true,
+      // Improve loading performance
+      detectRetina: window.devicePixelRatio > 1
     }).addTo(map);
 
     markersLayer = L.layerGroup().addTo(map);
