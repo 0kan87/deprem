@@ -274,11 +274,12 @@
     
     const magnitude = earthquake.magnitude;
     
-    // Şiddet seviyesi belirleme
-    let intensity = 'low'; // < 6.0
-    if (magnitude >= 8.0) intensity = 'extreme';
-    else if (magnitude >= 7.0) intensity = 'high';
-    else if (magnitude >= 6.0) intensity = 'medium';
+    // Şiddet seviyesi belirleme (eşitli aralıklar)
+    let intensity = 'low'; // 0-1.4 (Koyu Yeşil)
+    if (magnitude >= 4.5) intensity = 'extreme'; // 4.5+ (Turuncu-Kırmızı)
+    else if (magnitude >= 3.5) intensity = 'high'; // 3.5-4.4 (Sarı-Turuncu)
+    else if (magnitude >= 2.5) intensity = 'medium'; // 2.5-3.4 (Sarı)
+    else if (magnitude >= 1.5) intensity = 'mid'; // 1.5-2.4 (Açık Yeşil)
     
     // Alarm overlay (renk efekti)
     const overlay = document.createElement('div');
@@ -289,10 +290,7 @@
     document.body.classList.remove('shake-light', 'shake-moderate', 'shake-major');
     document.body.classList.add('page-shake', `shake-${intensity}`);
     
-    // Kenar efekti (renk çerçeve)
-    const border = document.createElement('div');
-    border.className = `earthquake-border intensity-${intensity}`;
-    document.body.appendChild(border);
+    // Border efekti kaldırıldı
 
     // Büyüklüğe göre efekt süresi
     let duration = 1000;
@@ -302,9 +300,8 @@
 
     // Temizlik işlemi
     setTimeout(() => {
-      document.body.classList.remove('page-shake', `shake-${intensity}`);
+      document.body.classList.remove('page-shake', 'shake-low', 'shake-mid', 'shake-medium', 'shake-high', 'shake-extreme');
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-      if (border.parentNode) border.parentNode.removeChild(border);
     }, duration);
   }
 

@@ -68,12 +68,14 @@
   }
   
   function getMagnitudeColor(magnitude) {
-    if (magnitude >= 6) return '#dc2626'; // Kırmızı
-    if (magnitude >= 5) return '#ea580c'; // Turuncu
-    if (magnitude >= 4) return '#f59e0b'; // Sarı-turuncu
-    if (magnitude >= 3) return '#eab308'; // Sarı
-    if (magnitude >= 2) return '#84cc16'; // Yeşil-sarı
-    return '#22c55e'; // Yeşil
+    if (magnitude >= 6) return '#dc2626';  // Kırmızı (6.0+)
+    if (magnitude >= 5) return '#ea580c';  // Turuncu (5.0-5.9)
+    if (magnitude >= 4) return '#f59e0b';  // Sarı-turuncu (4.0-4.9)
+    if (magnitude >= 3) return '#eab308';  // Sarı (3.0-3.9)
+    if (magnitude >= 2.5) return '#a3e635'; // Açık yeşil (2.5-2.9)
+    if (magnitude >= 2) return '#84cc16';  // Lime yeşil (2.0-2.4)
+    if (magnitude >= 1.5) return '#65a30d'; // Orta yeşil (1.5-1.9)
+    return '#22c55e';               // Koyu yeşil (0-1.4)
   }
   
   function formatNumber(num) {

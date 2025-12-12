@@ -28,22 +28,26 @@
   const IS_VERCEL = import.meta.env.PROD && window.location.hostname.includes('vercel.app');
 
   // Deprem animasyonu - şiddetine göre efekt
-  function triggerEarthquakeEffect(earthquake, focusMap = true) {
+  function triggerEarthquakeEffect(earthquake, focusMap = true, isManual = false) {
     if (!earthquake) return;
     
-    isNewEarthquake = true;
+    // Sadece otomatik yeni depremler için kırmızı border
+    if (!isManual) {
+      isNewEarthquake = true;
+    }
     
     // Haritayı depreme odakla
     if (focusMap) {
       focusEarthquake = earthquake;
     }
     
-    // Şiddetine göre efekt seviyesi belirleme
+    // Şiddetine göre efekt seviyesi belirleme (eşitli aralıklar)
     const magnitude = earthquake.magnitude;
-    let intensity = 'low'; // < 3.0
-    if (magnitude >= 5.0) intensity = 'extreme';
-    else if (magnitude >= 4.0) intensity = 'high';
-    else if (magnitude >= 3.0) intensity = 'medium';
+    let intensity = 'low'; // 0-1.4 (Koyu Yeşil)
+    if (magnitude >= 4.5) intensity = 'extreme'; // 4.5+ (Turuncu-Kırmızı)
+    else if (magnitude >= 3.5) intensity = 'high'; // 3.5-4.4 (Sarı-Turuncu)
+    else if (magnitude >= 2.5) intensity = 'medium'; // 2.5-3.4 (Sarı)
+    else if (magnitude >= 1.5) intensity = 'mid'; // 1.5-2.4 (Açık Yeşil)
     
     // Alarm overlay
     const overlay = document.createElement('div');
@@ -53,10 +57,7 @@
     // Sayfa sallama efekti - şiddetine göre
     document.body.classList.add('page-shake', `shake-${intensity}`);
     
-    // Kenar efekti
-    const border = document.createElement('div');
-    border.className = `earthquake-border intensity-${intensity}`;
-    document.body.appendChild(border);
+    // Border efekti kaldırıldı - sadece sallama ve glow
 
     // Büyüklüğe göre efekt süresi
     let duration = 1000;
@@ -66,9 +67,8 @@
     else if (magnitude >= 2.0) duration = 1200;
     
     setTimeout(() => {
-      document.body.classList.remove('page-shake', 'shake-low', 'shake-medium', 'shake-high', 'shake-extreme');
+      document.body.classList.remove('page-shake', 'shake-low', 'shake-mid', 'shake-medium', 'shake-high', 'shake-extreme');
       overlay.remove();
-      border.remove();
       isNewEarthquake = false;
     }, duration);
 
@@ -102,7 +102,9 @@
   function handleEarthquakeAnimation(event) {
     const earthquake = event.detail;
     if (earthquake) {
-      triggerEarthquakeEffect(earthquake, true);
+      // Manuel tıklamalarda isNewEarthquake false olmalı - kırmızı border yok
+      isNewEarthquake = false;
+      triggerEarthquakeEffect(earthquake, true, true);
     }
   }
 
@@ -305,12 +307,14 @@
   }
 
   function getMagnitudeColor(mag) {
-    if (mag >= 6) return '#dc2626';
-    if (mag >= 5) return '#ea580c';
-    if (mag >= 4) return '#f59e0b';
-    if (mag >= 3) return '#eab308';
-    if (mag >= 2) return '#84cc16';
-    return '#22c55e';
+    if (mag >= 6) return '#dc2626';  // Kırmızı (6.0+)
+    if (mag >= 5) return '#ea580c';  // Turuncu (5.0-5.9)
+    if (mag >= 4) return '#f59e0b';  // Sarı-turuncu (4.0-4.9)
+    if (mag >= 3) return '#eab308';  // Sarı (3.0-3.9)
+    if (mag >= 2.5) return '#a3e635'; // Açık yeşil (2.5-2.9)
+    if (mag >= 2) return '#84cc16';  // Lime yeşil (2.0-2.4)
+    if (mag >= 1.5) return '#65a30d'; // Orta yeşil (1.5-1.9)
+    return '#22c55e';               // Koyu yeşil (0-1.4)
   }
 
   function toggleTheme() {
@@ -423,8 +427,8 @@
       magnitude: 3.0 // Kullanıcı bildirimi için varsayılan büyüklük
     };
 
-    // Deprem bildirim animasyonu tetikle (3.0 büyüklüğünde)
-    triggerEarthquakeEffect(userReport, false);
+    // Deprem bildirim animasyonu tetikle (3.0 büyüklüğünde) - manuel işlem
+    triggerEarthquakeEffect(userReport, false, true);
 
     // 1. Butona basan kişiye bildirim gönder
     sendUserReportNotification(userReport, true);
@@ -647,19 +651,28 @@
 
   /* Sayfa sallama efekti - şiddetine göre */
   :global(body.page-shake.shake-low) {
-    animation: shakeLow 0.4s cubic-bezier(.36,.07,.19,.97) 2;
+    animation: shakeLow 0.6s cubic-bezier(.36,.07,.19,.97) 3;
+    background-color: rgba(34, 197, 94, 0.08) !important;
+  }
+
+  :global(body.page-shake.shake-mid) {
+    animation: shakeMid 0.8s ease-out 4;
+    background-color: rgba(132, 204, 22, 0.1) !important;
   }
 
   :global(body.page-shake.shake-medium) {
-    animation: shakeMedium 0.5s cubic-bezier(.36,.07,.19,.97) 3;
+    animation: shakeMedium 0.7s cubic-bezier(.36,.07,.19,.97) 4;
+    background-color: rgba(234, 179, 8, 0.12) !important;
   }
 
   :global(body.page-shake.shake-high) {
-    animation: shakeHigh 0.5s cubic-bezier(.36,.07,.19,.97) 4;
+    animation: shakeHigh 0.8s cubic-bezier(.36,.07,.19,.97) 5;
+    background-color: rgba(245, 158, 11, 0.15) !important;
   }
 
   :global(body.page-shake.shake-extreme) {
-    animation: shakeExtreme 0.6s cubic-bezier(.36,.07,.19,.97) 5;
+    animation: shakeExtreme 1s cubic-bezier(.36,.07,.19,.97) 6;
+    background-color: rgba(234, 88, 12, 0.18) !important;
   }
 
   /* Tarihi depremler için shake animasyonları */
@@ -675,64 +688,216 @@
     animation: shakeExtreme 0.7s ease-out 5;
   }
 
-  /* Düşük şiddet (< 3.0) */
+  /* Düşük şiddet (0-1.4) - Koyu Yeşil */
   @keyframes shakeLow {
-    0%, 100% { transform: translateX(0) translateY(0); }
-    25% { transform: translateX(-2px) translateY(1px); }
-    50% { transform: translateX(2px) translateY(-1px); }
-    75% { transform: translateX(-1px) translateY(1px); }
+    0%, 100% { 
+      transform: translateX(0) translateY(0); 
+      box-shadow: 0 0 80px rgba(34, 197, 94, 2);
+    }
+    25% { 
+      transform: translateX(-2px) translateY(1px); 
+      box-shadow: 0 0 100px rgba(34, 197, 94, 2.5);
+    }
+    50% { 
+      transform: translateX(2px) translateY(-1px); 
+      box-shadow: 0 0 100px rgba(34, 197, 94, 2.5);
+    }
+    75% { 
+      transform: translateX(-1px) translateY(1px); 
+      box-shadow: 0 0 90px rgba(34, 197, 94, 2.2);
+    }
   }
 
-  /* Orta şiddet (3.0 - 4.0) */
+  /* Düşük-orta şiddet (1.5-2.4) - Lime Yeşil Süper Güçlü */
+  @keyframes shakeMid {
+    0%, 100% { 
+      transform: translateX(0) translateY(0); 
+      box-shadow: 0 0 100px rgba(132, 204, 22, 2.5);
+    }
+    25% { 
+      transform: translateX(-3px) translateY(1px); 
+      box-shadow: 0 0 120px rgba(132, 204, 22, 3);
+    }
+    50% { 
+      transform: translateX(4px) translateY(-2px); 
+      box-shadow: 0 0 140px rgba(132, 204, 22, 3.5);
+    }
+    75% { 
+      transform: translateX(-2px) translateY(1px); 
+      box-shadow: 0 0 120px rgba(132, 204, 22, 3);
+    }
+  }
+
+  /* Orta şiddet (3.0 - 3.9) - Sarı */
   @keyframes shakeMedium {
-    0%, 100% { transform: translateX(0) translateY(0); }
-    10% { transform: translateX(-4px) translateY(2px); }
-    20% { transform: translateX(5px) translateY(-2px); }
-    30% { transform: translateX(-6px) translateY(3px); }
-    40% { transform: translateX(6px) translateY(-3px); }
-    50% { transform: translateX(-5px) translateY(2px); }
-    60% { transform: translateX(5px) translateY(-2px); }
-    70% { transform: translateX(-4px) translateY(2px); }
-    80% { transform: translateX(3px) translateY(-1px); }
-    90% { transform: translateX(-2px) translateY(1px); }
+    0%, 100% { 
+      transform: translateX(0) translateY(0); 
+      box-shadow: 0 0 30px rgba(234, 179, 8, 1.2), 0 0 18px rgba(163, 230, 53, 0.9);
+    }
+    10% { 
+      transform: translateX(-4px) translateY(2px); 
+      box-shadow: 0 0 45px rgba(234, 179, 8, 1.5), 0 0 30px rgba(163, 230, 53, 1.1);
+    }
+    20% { 
+      transform: translateX(5px) translateY(-2px); 
+      box-shadow: 0 0 45px rgba(163, 230, 53, 1.3), 0 0 30px rgba(234, 179, 8, 1.3);
+    }
+    30% { 
+      transform: translateX(-6px) translateY(3px); 
+      box-shadow: 0 0 50px rgba(234, 179, 8, 1.6), 0 0 35px rgba(163, 230, 53, 1.2);
+    }
+    40% { 
+      transform: translateX(6px) translateY(-3px); 
+      box-shadow: 0 0 50px rgba(163, 230, 53, 1.4), 0 0 35px rgba(234, 179, 8, 1.4);
+    }
+    50% { 
+      transform: translateX(-5px) translateY(2px); 
+      box-shadow: 0 0 40px rgba(234, 179, 8, 1.3), 0 0 25px rgba(163, 230, 53, 1);
+    }
+    60% { 
+      transform: translateX(5px) translateY(-2px); 
+      box-shadow: 0 0 40px rgba(163, 230, 53, 1.2), 0 0 25px rgba(234, 179, 8, 1.1);
+    }
+    70% { 
+      transform: translateX(-4px) translateY(2px); 
+      box-shadow: 0 0 20px rgba(234, 179, 8, 0.6);
+    }
+    80% { 
+      transform: translateX(3px) translateY(-1px); 
+      box-shadow: 0 0 18px rgba(234, 179, 8, 0.5);
+    }
+    90% { 
+      transform: translateX(-2px) translateY(1px); 
+      box-shadow: 0 0 15px rgba(234, 179, 8, 0.4);
+    }
   }
 
-  /* Yüksek şiddet (4.0 - 5.0) */
+  /* Yüksek şiddet (3.5-4.4) - Sarı-Turuncu */
   @keyframes shakeHigh {
-    0%, 100% { transform: translateX(0) translateY(0); }
-    10% { transform: translateX(-8px) translateY(4px); }
-    20% { transform: translateX(10px) translateY(-4px); }
-    30% { transform: translateX(-12px) translateY(6px); }
-    40% { transform: translateX(12px) translateY(-6px); }
-    50% { transform: translateX(-10px) translateY(5px); }
-    60% { transform: translateX(10px) translateY(-5px); }
-    70% { transform: translateX(-8px) translateY(4px); }
-    80% { transform: translateX(6px) translateY(-3px); }
-    90% { transform: translateX(-4px) translateY(2px); }
+    0%, 100% { 
+      transform: translateX(0) translateY(0); 
+      box-shadow: 0 0 40px rgba(245, 158, 11, 1.4);
+    }
+    10% { 
+      transform: translateX(-8px) translateY(4px); 
+      box-shadow: 0 0 55px rgba(245, 158, 11, 1.6);
+    }
+    20% { 
+      transform: translateX(10px) translateY(-4px); 
+      box-shadow: 0 0 55px rgba(245, 158, 11, 1.6);
+    }
+    30% { 
+      transform: translateX(-12px) translateY(6px); 
+      box-shadow: 0 0 60px rgba(245, 158, 11, 1.8);
+    }
+    40% { 
+      transform: translateX(12px) translateY(-6px); 
+      box-shadow: 0 0 60px rgba(245, 158, 11, 1.8);
+    }
+    50% { 
+      transform: translateX(-10px) translateY(5px); 
+      box-shadow: 0 0 35px rgba(245, 158, 11, 0.8);
+    }
+    60% { 
+      transform: translateX(10px) translateY(-5px); 
+      box-shadow: 0 0 35px rgba(245, 158, 11, 0.8);
+    }
+    70% { 
+      transform: translateX(-8px) translateY(4px); 
+      box-shadow: 0 0 30px rgba(245, 158, 11, 0.7);
+    }
+    80% { 
+      transform: translateX(6px) translateY(-3px); 
+      box-shadow: 0 0 25px rgba(245, 158, 11, 0.6);
+    }
+    90% { 
+      transform: translateX(-4px) translateY(2px); 
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+    }
   }
 
-  /* Aşırı şiddet (5.0+) */
+  /* Yüksek şiddet (5.0+) - Turuncu/Kırmızı karışımı */
   @keyframes shakeExtreme {
-    0%, 100% { transform: translateX(0) translateY(0); }
-    5% { transform: translateX(-12px) translateY(6px) rotate(-1deg); }
-    10% { transform: translateX(14px) translateY(-6px) rotate(1deg); }
-    15% { transform: translateX(-16px) translateY(8px) rotate(-1.5deg); }
-    20% { transform: translateX(16px) translateY(-8px) rotate(1.5deg); }
-    25% { transform: translateX(-14px) translateY(7px) rotate(-1deg); }
-    30% { transform: translateX(14px) translateY(-7px) rotate(1deg); }
-    35% { transform: translateX(-12px) translateY(6px) rotate(-0.5deg); }
-    40% { transform: translateX(12px) translateY(-6px) rotate(0.5deg); }
-    45% { transform: translateX(-10px) translateY(5px); }
-    50% { transform: translateX(10px) translateY(-5px); }
-    55% { transform: translateX(-8px) translateY(4px); }
-    60% { transform: translateX(8px) translateY(-4px); }
-    65% { transform: translateX(-6px) translateY(3px); }
-    70% { transform: translateX(6px) translateY(-3px); }
-    75% { transform: translateX(-4px) translateY(2px); }
-    80% { transform: translateX(4px) translateY(-2px); }
-    85% { transform: translateX(-3px) translateY(1px); }
-    90% { transform: translateX(2px) translateY(-1px); }
-    95% { transform: translateX(-1px) translateY(1px); }
+    0%, 100% { 
+      transform: translateX(0) translateY(0); 
+      box-shadow: 0 0 40px rgba(234, 88, 12, 1.3), 0 0 25px rgba(220, 38, 38, 0.8);
+    }
+    5% { 
+      transform: translateX(-12px) translateY(6px) rotate(-1deg); 
+      box-shadow: 0 0 70px rgba(234, 88, 12, 1.8), 0 0 50px rgba(220, 38, 38, 1.4);
+    }
+    10% { 
+      transform: translateX(14px) translateY(-6px) rotate(1deg); 
+      box-shadow: 0 0 70px rgba(220, 38, 38, 1.7), 0 0 50px rgba(234, 88, 12, 1.5);
+    }
+    15% { 
+      transform: translateX(-16px) translateY(8px) rotate(-1.5deg); 
+      box-shadow: 0 0 80px rgba(220, 38, 38, 2), 0 0 60px rgba(234, 88, 12, 1.6);
+    }
+    20% { 
+      transform: translateX(16px) translateY(-8px) rotate(1.5deg); 
+      box-shadow: 0 0 80px rgba(234, 88, 12, 2), 0 0 60px rgba(220, 38, 38, 1.7);
+    }
+    25% { 
+      transform: translateX(-14px) translateY(7px) rotate(-1deg); 
+      box-shadow: 0 0 55px rgba(234, 88, 12, 1.1), 0 0 35px rgba(220, 38, 38, 0.9);
+    }
+    30% { 
+      transform: translateX(14px) translateY(-7px) rotate(1deg); 
+      box-shadow: 0 0 50px rgba(220, 38, 38, 1), 0 0 30px rgba(234, 88, 12, 0.8);
+    }
+    35% { 
+      transform: translateX(-12px) translateY(6px) rotate(-0.5deg); 
+      box-shadow: 0 0 45px rgba(234, 88, 12, 0.9), 0 0 25px rgba(220, 38, 38, 0.7);
+    }
+    40% { 
+      transform: translateX(12px) translateY(-6px) rotate(0.5deg); 
+      box-shadow: 0 0 45px rgba(220, 38, 38, 0.9), 0 0 25px rgba(234, 88, 12, 0.7);
+    }
+    45% { 
+      transform: translateX(-10px) translateY(5px); 
+      box-shadow: 0 0 40px rgba(234, 88, 12, 0.8), 0 0 20px rgba(220, 38, 38, 0.6);
+    }
+    50% { 
+      transform: translateX(10px) translateY(-5px); 
+      box-shadow: 0 0 40px rgba(220, 38, 38, 0.8), 0 0 20px rgba(234, 88, 12, 0.6);
+    }
+    55% { 
+      transform: translateX(-8px) translateY(4px); 
+      box-shadow: 0 0 35px rgba(234, 88, 12, 0.7), 0 0 18px rgba(220, 38, 38, 0.5);
+    }
+    60% { 
+      transform: translateX(8px) translateY(-4px); 
+      box-shadow: 0 0 35px rgba(220, 38, 38, 0.7), 0 0 18px rgba(234, 88, 12, 0.5);
+    }
+    65% { 
+      transform: translateX(-6px) translateY(3px); 
+      box-shadow: 0 0 30px rgba(234, 88, 12, 0.6), 0 0 15px rgba(220, 38, 38, 0.4);
+    }
+    70% { 
+      transform: translateX(6px) translateY(-3px); 
+      box-shadow: 0 0 30px rgba(220, 38, 38, 0.6), 0 0 15px rgba(234, 88, 12, 0.4);
+    }
+    75% { 
+      transform: translateX(-4px) translateY(2px); 
+      box-shadow: 0 0 28px rgba(234, 88, 12, 0.5), 0 0 12px rgba(220, 38, 38, 0.3);
+    }
+    80% { 
+      transform: translateX(4px) translateY(-2px); 
+      box-shadow: 0 0 26px rgba(220, 38, 38, 0.5), 0 0 12px rgba(234, 88, 12, 0.3);
+    }
+    85% { 
+      transform: translateX(-3px) translateY(1px); 
+      box-shadow: 0 0 25px rgba(234, 88, 12, 0.4), 0 0 10px rgba(220, 38, 38, 0.25);
+    }
+    90% { 
+      transform: translateX(2px) translateY(-1px); 
+      box-shadow: 0 0 25px rgba(220, 38, 38, 0.4), 0 0 10px rgba(234, 88, 12, 0.25);
+    }
+    95% { 
+      transform: translateX(-1px) translateY(1px); 
+      box-shadow: 0 0 25px rgba(234, 88, 12, 0.3), 0 0 8px rgba(220, 38, 38, 0.2);
+    }
   }
 
   /* Büyük deprem efekti */
@@ -741,26 +906,86 @@
   }
 
   @keyframes bigShake {
-    0%, 100% { transform: translateX(0) translateY(0); }
-    5% { transform: translateX(-10px) translateY(5px); }
-    10% { transform: translateX(10px) translateY(-5px); }
-    15% { transform: translateX(-12px) translateY(8px); }
-    20% { transform: translateX(12px) translateY(-8px); }
-    25% { transform: translateX(-10px) translateY(6px); }
-    30% { transform: translateX(10px) translateY(-6px); }
-    35% { transform: translateX(-8px) translateY(5px); }
-    40% { transform: translateX(8px) translateY(-5px); }
-    45% { transform: translateX(-6px) translateY(4px); }
-    50% { transform: translateX(6px) translateY(-4px); }
-    55% { transform: translateX(-5px) translateY(3px); }
-    60% { transform: translateX(5px) translateY(-3px); }
-    65% { transform: translateX(-4px) translateY(2px); }
-    70% { transform: translateX(4px) translateY(-2px); }
-    75% { transform: translateX(-3px) translateY(2px); }
-    80% { transform: translateX(3px) translateY(-2px); }
-    85% { transform: translateX(-2px) translateY(1px); }
-    90% { transform: translateX(2px) translateY(-1px); }
-    95% { transform: translateX(-1px) translateY(1px); }
+    0%, 100% { 
+      transform: translateX(0) translateY(0); 
+      box-shadow: 0 0 50px rgba(220, 38, 38, 1.4);
+    }
+    5% { 
+      transform: translateX(-10px) translateY(5px); 
+      box-shadow: 0 0 80px rgba(220, 38, 38, 1.8);
+    }
+    10% { 
+      transform: translateX(10px) translateY(-5px); 
+      box-shadow: 0 0 80px rgba(220, 38, 38, 1.8);
+    }
+    15% { 
+      transform: translateX(-12px) translateY(8px); 
+      box-shadow: 0 0 90px rgba(220, 38, 38, 2.1);
+    }
+    20% { 
+      transform: translateX(12px) translateY(-8px); 
+      box-shadow: 0 0 90px rgba(220, 38, 38, 2.1);
+    }
+    25% { 
+      transform: translateX(-10px) translateY(6px); 
+      box-shadow: 0 0 65px rgba(220, 38, 38, 1.1);
+    }
+    30% { 
+      transform: translateX(10px) translateY(-6px); 
+      box-shadow: 0 0 60px rgba(220, 38, 38, 1);
+    }
+    35% { 
+      transform: translateX(-8px) translateY(5px); 
+      box-shadow: 0 0 55px rgba(220, 38, 38, 0.9);
+    }
+    40% { 
+      transform: translateX(8px) translateY(-5px); 
+      box-shadow: 0 0 50px rgba(220, 38, 38, 0.8);
+    }
+    45% { 
+      transform: translateX(-6px) translateY(4px); 
+      box-shadow: 0 0 45px rgba(220, 38, 38, 0.7);
+    }
+    50% { 
+      transform: translateX(6px) translateY(-4px); 
+      box-shadow: 0 0 40px rgba(220, 38, 38, 0.6);
+    }
+    55% { 
+      transform: translateX(-5px) translateY(3px); 
+      box-shadow: 0 0 35px rgba(220, 38, 38, 0.5);
+    }
+    60% { 
+      transform: translateX(5px) translateY(-3px); 
+      box-shadow: 0 0 35px rgba(220, 38, 38, 0.5);
+    }
+    65% { 
+      transform: translateX(-4px) translateY(2px); 
+      box-shadow: 0 0 32px rgba(220, 38, 38, 0.4);
+    }
+    70% { 
+      transform: translateX(4px) translateY(-2px); 
+      box-shadow: 0 0 32px rgba(220, 38, 38, 0.4);
+    }
+    75% { 
+      transform: translateX(-3px) translateY(2px); 
+      box-shadow: 0 0 30px rgba(220, 38, 38, 0.35);
+    }
+    80% { 
+      transform: translateX(3px) translateY(-2px); 
+      box-shadow: 0 0 30px rgba(220, 38, 38, 0.35);
+    }
+    85% { 
+      transform: translateX(-2px) translateY(1px); 
+      box-shadow: 0 0 30px rgba(220, 38, 38, 0.3);
+    }
+    90% { 
+      transform: translateX(2px) translateY(-1px); 
+      box-shadow: 0 0 30px rgba(220, 38, 38, 0.3);
+    }
+    95% { 
+      transform: translateX(-1px) translateY(1px); 
+      box-shadow: 0 0 30px rgba(220, 38, 38, 0.25);
+    }
   }
 
   /* Alarm overlay efekti - şiddetine göre */
@@ -815,59 +1040,7 @@
   }
 
   /* Kenar efekti - şiddetine göre */
-  :global(.earthquake-border) {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    pointer-events: none;
-    z-index: 9999;
-    border: 4px solid transparent;
-  }
-
-  :global(.earthquake-border.intensity-low) {
-    animation: borderFlashLow 0.4s ease-in-out 2;
-    box-shadow: inset 0 0 40px rgba(34, 197, 94, 0.3);
-  }
-
-  :global(.earthquake-border.intensity-medium) {
-    border-width: 5px;
-    animation: borderFlashMedium 0.35s ease-in-out 3;
-    box-shadow: inset 0 0 60px rgba(234, 179, 8, 0.4);
-  }
-
-  :global(.earthquake-border.intensity-high) {
-    border-width: 6px;
-    animation: borderFlashHigh 0.3s ease-in-out 4;
-    box-shadow: inset 0 0 80px rgba(249, 115, 22, 0.5);
-  }
-
-  :global(.earthquake-border.intensity-extreme) {
-    border-width: 8px;
-    animation: borderFlashExtreme 0.25s ease-in-out 6;
-    box-shadow: inset 0 0 120px rgba(220, 38, 38, 0.6);
-  }
-
-  @keyframes borderFlashLow {
-    0%, 100% { border-color: transparent; box-shadow: inset 0 0 20px rgba(34, 197, 94, 0.2); }
-    50% { border-color: #22c55e; box-shadow: inset 0 0 50px rgba(34, 197, 94, 0.4); }
-  }
-
-  @keyframes borderFlashMedium {
-    0%, 100% { border-color: transparent; box-shadow: inset 0 0 30px rgba(234, 179, 8, 0.25); }
-    50% { border-color: #eab308; box-shadow: inset 0 0 70px rgba(234, 179, 8, 0.5); }
-  }
-
-  @keyframes borderFlashHigh {
-    0%, 100% { border-color: transparent; box-shadow: inset 0 0 40px rgba(249, 115, 22, 0.3); }
-    50% { border-color: #f97316; box-shadow: inset 0 0 100px rgba(249, 115, 22, 0.6); }
-  }
-
-  @keyframes borderFlashExtreme {
-    0%, 100% { border-color: transparent; box-shadow: inset 0 0 60px rgba(220, 38, 38, 0.4); }
-    50% { border-color: #dc2626; box-shadow: inset 0 0 150px rgba(220, 38, 38, 0.8); }
-  }
+  /* Border efektleri kaldırıldı - sadece sallama animasyonları kullanılıyor */
 
   /* Yoğun flash efekti - şiddetine göre */
   :global(.earthquake-flash-intense) {
